@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from collections import OrderedDict
 import pandas as pd
 from lux.core.series import LuxSeries
 from lux.vis.Clause import Clause
@@ -90,6 +91,7 @@ class LuxDataFrame(pd.DataFrame):
         self._min_max = None
         self.pre_aggregated = None
         self._type_override = {}
+        self._col_histograms = {}
         warnings.formatwarning = lux.warning_format
 
     @property
@@ -120,12 +122,26 @@ class LuxDataFrame(pd.DataFrame):
         """
         Compute dataset metadata and statistics
         """
+        print("metadata computed for ", self)
         if len(self) > 0:
             if lux.config.executor.name != "SQLExecutor":
                 lux.config.executor.compute_stats(self)
             lux.config.executor.compute_dataset_metadata(self)
             self._infer_structure()
             self._metadata_fresh = True
+
+    
+    def compute_histogram_per_column(self):
+        """
+        manually compute histogram of each column
+
+        each histogram is stored as an ordered dict of value -> freq, sorted on value
+        """
+
+        for attribute in self.columns:
+            self._col_histograms[attribute] = self[attribute].value_counts().sort_index().to_dict(OrderedDict)
+
+
 
     def maintain_metadata(self):
         """
@@ -162,6 +178,7 @@ class LuxDataFrame(pd.DataFrame):
         """
         Expire all saved metadata to trigger a recomputation the next time the data is required.
         """
+        print("metadata expired!")
         if lux.config.lazy_maintain:
             self._metadata_fresh = False
             self._data_type = None
@@ -174,22 +191,26 @@ class LuxDataFrame(pd.DataFrame):
     ## Override Pandas ##
     #####################
     def __getattr__(self, name):
+        # print("__getattr__ called")
         ret_value = super(LuxDataFrame, self).__getattr__(name)
         self.expire_metadata()
         self.expire_recs()
         return ret_value
 
     def _set_axis(self, axis, labels):
+        # print("_set_axis called")
         super(LuxDataFrame, self)._set_axis(axis, labels)
         self.expire_metadata()
         self.expire_recs()
 
     def _update_inplace(self, *args, **kwargs):
+        # print("_update_inplace called")
         super(LuxDataFrame, self)._update_inplace(*args, **kwargs)
         self.expire_metadata()
         self.expire_recs()
 
     def _set_item(self, key, value):
+        # print("_set_item called")
         super(LuxDataFrame, self)._set_item(key, value)
         self.expire_metadata()
         self.expire_recs()
