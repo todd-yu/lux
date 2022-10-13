@@ -13,3 +13,6 @@ build/
 .idea/
 tests/.coverage
 tests/coverage.xml
+# Virtual environments
+.venv
+.lux-base
