@@ -23,6 +23,7 @@ from lux.utils.date_utils import is_datetime_series
 from lux.utils.message import Message
 from lux.utils.utils import check_import_lux_widget
 from typing import Dict, Union, List, Callable
+from indexed import IndexedOrderedDict
 
 # from lux.executor.Executor import *
 import warnings
@@ -91,8 +92,9 @@ class LuxDataFrame(pd.DataFrame):
         self._min_max = None
         self.pre_aggregated = None
         self._type_override = {}
-        self._histograms = {} #histogram per column
-        self.compute_histogram_per_column() # compute stats upon construction
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._histograms = {} #histogram per column
         warnings.formatwarning = lux.warning_format
 
     @property
@@ -139,9 +141,10 @@ class LuxDataFrame(pd.DataFrame):
         each histogram is stored as an ordered dict of value -> freq, sorted on value
         """
 
+        print("histograms computed!", self)
         for attribute in self.columns:
             if attribute not in self._histograms:
-                self._histograms[attribute] = self[attribute].value_counts().sort_index().to_dict(OrderedDict)
+                self._histograms[attribute] = self[attribute].value_counts().sort_index().to_dict(IndexedOrderedDict)
 
 
 
@@ -341,6 +344,7 @@ class LuxDataFrame(pd.DataFrame):
 
     @property
     def recommendation(self):
+        print("Recommendation called!")
         if self._recommendation is not None and self._recommendation == {}:
             from lux.processor.Compiler import Compiler
 

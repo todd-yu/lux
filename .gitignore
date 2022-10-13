@@ -16,3 +16,4 @@ tests/coverage.xml
 # Virtual environments
 .venv
 .lux-base
+data/
