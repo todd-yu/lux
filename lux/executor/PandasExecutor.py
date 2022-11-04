@@ -580,8 +580,6 @@ class PandasExecutor(Executor):
         if not ldf._histograms:
             ldf.compute_histogram_per_column()
 
-        # print("DEBUG ", ldf._histograms)
-
         for attribute in ldf.columns:
 
             if isinstance(attribute, pd._libs.tslibs.timestamps.Timestamp):
@@ -596,7 +594,7 @@ class PandasExecutor(Executor):
                 ldf.cardinality[attribute_repr] = len(ldf._histograms[attribute])
 
                 if pd.api.types.is_float_dtype(ldf.dtypes[attribute]) or pd.api.types.is_integer_dtype(ldf.dtypes[attribute]):
-                    ldf._min_max[attribute_repr] = (ldf._histograms[attribute].peekitem(0),ldf._histograms[attribute].peekitem(-1),)
+                    ldf._min_max[attribute_repr] = (ldf._histograms[attribute].peekitem(0)[0],ldf._histograms[attribute].peekitem(-1)[0],)
 
             # ====== end Prototype ======
             else:

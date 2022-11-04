@@ -139,8 +139,6 @@ class LuxDataFrame(pd.DataFrame):
 
         each histogram is stored as an ordered dict of value -> freq, sorted on value
         """
-
-        print("histograms computed!", self)
         for attribute in self.columns:
             if attribute not in self._histograms:
                 self._histograms[attribute] = self[attribute].value_counts().to_dict(SortedDict)
