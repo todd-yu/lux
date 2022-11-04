@@ -596,15 +596,15 @@ class PandasExecutor(Executor):
                 ldf.cardinality[attribute_repr] = len(ldf._histograms[attribute])
 
                 if pd.api.types.is_float_dtype(ldf.dtypes[attribute]) or pd.api.types.is_integer_dtype(ldf.dtypes[attribute]):
-                    ldf._min_max[attribute_repr] = (ldf._histograms[attribute].keys()[0],ldf._histograms[attribute].keys()[-1],)
+                    ldf._min_max[attribute_repr] = (ldf._histograms[attribute].peekitem(0),ldf._histograms[attribute].peekitem(-1),)
 
             # ====== end Prototype ======
             else:
                 ldf.unique_values[attribute_repr] = list(ldf[attribute].unique())
-            ldf.cardinality[attribute_repr] = len(ldf.unique_values[attribute_repr])
+                ldf.cardinality[attribute_repr] = len(ldf.unique_values[attribute_repr])
 
-            if pd.api.types.is_float_dtype(ldf.dtypes[attribute]) or pd.api.types.is_integer_dtype(ldf.dtypes[attribute]):
-                ldf._min_max[attribute_repr] = (ldf[attribute].min(),ldf[attribute].max(),)
+                if pd.api.types.is_float_dtype(ldf.dtypes[attribute]) or pd.api.types.is_integer_dtype(ldf.dtypes[attribute]):
+                    ldf._min_max[attribute_repr] = (ldf[attribute].min(),ldf[attribute].max(),)
 
         if not pd.api.types.is_integer_dtype(ldf.index):
             index_column_name = ldf.index.name

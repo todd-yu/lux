@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from collections import OrderedDict
 import pandas as pd
 from lux.core.series import LuxSeries
 from lux.vis.Clause import Clause
@@ -23,7 +22,7 @@ from lux.utils.date_utils import is_datetime_series
 from lux.utils.message import Message
 from lux.utils.utils import check_import_lux_widget
 from typing import Dict, Union, List, Callable
-from indexed import IndexedOrderedDict
+from sortedcontainers import SortedDict
 
 # from lux.executor.Executor import *
 import warnings
@@ -144,7 +143,7 @@ class LuxDataFrame(pd.DataFrame):
         print("histograms computed!", self)
         for attribute in self.columns:
             if attribute not in self._histograms:
-                self._histograms[attribute] = self[attribute].value_counts().sort_index().to_dict(IndexedOrderedDict)
+                self._histograms[attribute] = self[attribute].value_counts().to_dict(SortedDict)
 
 
 
