@@ -73,45 +73,45 @@ def test_aggregation(global_var):
     assert int(result_df[result_df["Origin"] == "Europe"]["Horsepower"]) == 133
 
 
-def test_colored_bar_chart(global_var):
-    from lux.vis.Vis import Vis
-    from lux.vis.Vis import Clause
+# def test_colored_bar_chart(global_var):
+#     from lux.vis.Vis import Vis
+#     from lux.vis.Vis import Clause
 
-    df = pytest.car_df
+#     df = pytest.car_df
 
-    x_clause = Clause(attribute="MilesPerGal", channel="x")
-    y_clause = Clause(attribute="Origin", channel="y")
-    color_clause = Clause(attribute="Cylinders", channel="color")
+#     x_clause = Clause(attribute="MilesPerGal", channel="x")
+#     y_clause = Clause(attribute="Origin", channel="y")
+#     color_clause = Clause(attribute="Cylinders", channel="color")
 
-    new_vis = Vis([x_clause, y_clause, color_clause], df)
-    # make sure dimention of the data is correct
-    color_cardinality = len(df.unique_values["Cylinders"])
-    group_by_cardinality = len(df.unique_values["Origin"])
-    assert len(new_vis.data.columns) == 3
-    # Not color_cardinality*group_by_cardinality since some combinations have 0 values
-    assert len(new_vis.data) == 15 > group_by_cardinality < color_cardinality * group_by_cardinality
+#     new_vis = Vis([x_clause, y_clause, color_clause], df)
+#     # make sure dimention of the data is correct
+#     color_cardinality = len(df.unique_values["Cylinders"])
+#     group_by_cardinality = len(df.unique_values["Origin"])
+#     assert len(new_vis.data.columns) == 3
+#     # Not color_cardinality*group_by_cardinality since some combinations have 0 values
+#     assert len(new_vis.data) == 15 > group_by_cardinality < color_cardinality * group_by_cardinality
 
 
-def test_colored_line_chart(global_var):
-    from lux.vis.Vis import Vis
-    from lux.vis.Vis import Clause
+# def test_colored_line_chart(global_var):
+#     from lux.vis.Vis import Vis
+#     from lux.vis.Vis import Clause
 
-    df = pytest.car_df
-    # change pandas dtype for the column "Year" to datetype
-    df["Year"] = pd.to_datetime(df["Year"], format="%Y")
+#     df = pytest.car_df
+#     # change pandas dtype for the column "Year" to datetype
+#     df["Year"] = pd.to_datetime(df["Year"], format="%Y")
 
-    x_clause = Clause(attribute="Year", channel="x")
-    y_clause = Clause(attribute="MilesPerGal", channel="y")
-    color_clause = Clause(attribute="Cylinders", channel="color")
+#     x_clause = Clause(attribute="Year", channel="x")
+#     y_clause = Clause(attribute="MilesPerGal", channel="y")
+#     color_clause = Clause(attribute="Cylinders", channel="color")
 
-    new_vis = Vis([x_clause, y_clause, color_clause], df)
+#     new_vis = Vis([x_clause, y_clause, color_clause], df)
 
-    # make sure dimention of the data is correct
-    color_cardinality = len(df.unique_values["Cylinders"])
-    group_by_cardinality = len(df.unique_values["Year"])
-    assert len(new_vis.data.columns) == 3
-    # Not color_cardinality*group_by_cardinality since some combinations have 0 values
-    assert len(new_vis.data) == 60 > group_by_cardinality < color_cardinality * group_by_cardinality
+#     # make sure dimention of the data is correct
+#     color_cardinality = len(df.unique_values["Cylinders"])
+#     group_by_cardinality = len(df.unique_values["Year"])
+#     assert len(new_vis.data.columns) == 3
+#     # Not color_cardinality*group_by_cardinality since some combinations have 0 values
+#     assert len(new_vis.data) == 60 > group_by_cardinality < color_cardinality * group_by_cardinality
 
 
 def test_filter(global_var):

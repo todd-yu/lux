@@ -17,14 +17,17 @@ from lux.vis.VisList import VisList
 from lux.vis.Vis import Vis
 from lux.core.frame import LuxDataFrame
 from lux.executor.Executor import Executor
+from lux.executor.ExecutorOptimizer import ExecutorOptimizer
 from lux.utils import utils
 from lux.utils.date_utils import is_datetime_series, is_timedelta64_series, timedelta64_to_float_seconds
 from lux.utils.utils import check_import_lux_widget, check_if_id_like, is_numeric_nan_column
 import warnings
 import lux
 from lux.utils.tracing_utils import LuxTracer
+import time
 
 
+optimizer = ExecutorOptimizer()
 
 class PandasExecutor(Executor):
     """
@@ -113,8 +116,15 @@ class PandasExecutor(Executor):
         -------
         None
         """
+        global optimizer
+
+        # TODO: The optimizer is not thread-safe at all
+        optimizer = ExecutorOptimizer()
+
+        start = time.time()
 
         PandasExecutor.execute_sampling(ldf)
+        
         for vis in vislist:
             # The vis data starts off being original or sampled dataframe
             vis._source = ldf
@@ -144,9 +154,16 @@ class PandasExecutor(Executor):
                     vis._mark = "scatter"
                 else:
                     vis._mark = "heatmap"
+                    bstart = time.time()
                     PandasExecutor.execute_2D_binning(vis)
+                    print(f"Heatmap executed in {time.time() - bstart}")
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
+        
+        print(f"Total time: {time.time()-start}")
+        print(f"Total accesses: {optimizer.total_access}, VisList length: {len(vislist)}")
+        if optimizer.total_access > 0:
+            print(f"Hit rate: {optimizer.hits / optimizer.total_access}")
 
     @staticmethod
     def execute_aggregate(vis: Vis, isFiltered=True):
@@ -300,7 +317,10 @@ class PandasExecutor(Executor):
         if is_timedelta64_series(series):
             series = timedelta64_to_float_seconds(series)
 
-        counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
+        # OPTIMIZE HERE
+        # counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
+        counts, bin_edges = optimizer.histogram(series, bins=bin_attribute.bin_size)
+
         # bin_edges of size N+1, so need to compute bin_start as the bin location
         bin_start = bin_edges[0:-1]
         binned_result = np.array([bin_start, counts]).T
@@ -410,8 +430,11 @@ class PandasExecutor(Executor):
                     except ValueError:
                         pass
 
-            vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], bins=lux.config.heatmap_bin_size)
-            vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], bins=lux.config.heatmap_bin_size)
+            # OPTIMIZE HERE
+            # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], bins=lux.config.heatmap_bin_size)
+            # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], bins=lux.config.heatmap_bin_size)
+            vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+            vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
 
             color_attr = vis.get_attr_by_channel("color")
             if len(color_attr) > 0:
