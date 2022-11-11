@@ -119,7 +119,7 @@ class PandasExecutor(Executor):
         global optimizer
 
         # TODO: The optimizer is not thread-safe at all
-        optimizer = ExecutorOptimizer()
+        # optimizer = ExecutorOptimizer()
 
         start = time.time()
 
