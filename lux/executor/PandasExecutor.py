@@ -124,6 +124,10 @@ class PandasExecutor(Executor):
         start = time.time()
 
         PandasExecutor.execute_sampling(ldf)
+
+        # Multi-aggregation + single group-by optimization
+        for vis in vislist:
+            pass
         
         for vis in vislist:
             # The vis data starts off being original or sampled dataframe
@@ -160,10 +164,12 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        print(f"Total time: {time.time()-start}")
-        print(f"Total accesses: {optimizer.total_access}, VisList length: {len(vislist)}")
-        if optimizer.total_access > 0:
-            print(f"Hit rate: {optimizer.hits / optimizer.total_access}")
+        print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
+        for k in optimizer.total_access:
+            hit_rate = 0
+            if optimizer.total_access[k] > 0:
+                hit_rate = optimizer.hits[k] / optimizer.total_access[k]
+            print(f"Total accesses for {k}: {optimizer.total_access[k]}, Hit rate for {k}: {hit_rate}")
 
     @staticmethod
     def execute_aggregate(vis: Vis, isFiltered=True):
@@ -433,6 +439,7 @@ class PandasExecutor(Executor):
             # OPTIMIZE HERE
             # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], bins=lux.config.heatmap_bin_size)
             # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], bins=lux.config.heatmap_bin_size)
+
             vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
             vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
 

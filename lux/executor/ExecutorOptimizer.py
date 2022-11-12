@@ -10,30 +10,37 @@ import time
 class ExecutorOptimizer:
     def __init__(self):
         self._cache = {}
-        self.hits = 0
-        self.total_access = 0
+        self.hits = {
+            "histogram": 0,
+            "cut": 0
+        }
+        self.total_access = {
+            "histogram": 0,
+            "cut": 0
+        }
 
     def cut(self, x, bins):
-        hash = np.sum(pd.util.hash_pandas_object(x))
-        # TODO: Hash x instead of vis data
+        hash = pd.util.hash_pandas_object(x).values.tobytes()
         key = ("cut", hash, bins)
-        self.total_access += 1
+        self.total_access["cut"] += 1
         if key in self._cache:
-            self.hits += 1
+            self.hits["cut"] += 1
             return self._cache[key]
-        start = time.time()
         res = pd.cut(x, bins)
-        print("cut", time.time() - start)
         self._cache[key] = res
         return res
 
     def histogram(self, series: LuxSeries, bins=10):
-        # hash = np.sum(pd.util.hash_pandas_object(series))
-        # key = ("histogram", hash, bins)
-        # self.total_access += 1
-        # if key in self._cache:
-        #     self.hits += 1
-        #     return self._cache[key]
+        hash = pd.util.hash_pandas_object(series).values.tobytes()
+        key = ("histogram", hash, bins)
+        self.total_access["histogram"] += 1
+        if key in self._cache:
+            self.hits["histogram"] += 1
+            return self._cache[key]
         res = np.histogram(series, bins=bins)
-        # self._cache[key] = res
+        self._cache[key] = res
         return res
+
+    @staticmethod
+    def batchgroupby():
+        pass
