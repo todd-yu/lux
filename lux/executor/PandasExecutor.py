@@ -119,17 +119,15 @@ class PandasExecutor(Executor):
         global optimizer
 
         # TODO: The optimizer is not thread-safe at all
-        # optimizer = ExecutorOptimizer()
+        optimizer = ExecutorOptimizer()
 
         start = time.time()
 
         PandasExecutor.execute_sampling(ldf)
 
-        # Multi-aggregation + single group-by optimization
-        for vis in vislist:
-            pass
-        
-        for vis in vislist:
+        filter_executed_all = {}
+
+        for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe
             vis._source = ldf
             vis._vis_data = ldf._sampled
@@ -139,7 +137,9 @@ class PandasExecutor(Executor):
                 PandasExecutor.execute_approx_sample(ldf)
                 vis._vis_data = ldf._approx_sample
                 vis.approx = True
+
             filter_executed = PandasExecutor.execute_filter(vis)
+            filter_executed_all[i] = filter_executed
             # Select relevant data based on attribute information
             attributes = set([])
             for clause in vis._inferred_intent:
@@ -147,9 +147,41 @@ class PandasExecutor(Executor):
                     attributes.add(clause.attribute)
             # TODO: Add some type of cap size on Nrows ?
             vis._vis_data = vis._vis_data[list(attributes)]
+                
+            if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
+                if filter_executed: # No optimization possible
+                    continue
+
+                x_attr = vis.get_attr_by_channel("x")[0]
+                y_attr = vis.get_attr_by_channel("y")[0]
+                has_color = False
+                groupby_attr = ""
+                measure_attr = ""
+                if x_attr.aggregation is None or y_attr.aggregation is None:
+                    continue
+                if y_attr.aggregation != "":
+                    groupby_attr = x_attr
+                    measure_attr = y_attr
+                    agg_func = y_attr.aggregation
+                if x_attr.aggregation != "":
+                    groupby_attr = y_attr
+                    measure_attr = x_attr
+                    agg_func = x_attr.aggregation
+                # checks if color is specified in the Vis
+                if len(vis.get_attr_by_channel("color")) == 1:
+                    has_color = True
+
+                if measure_attr != "" and measure_attr.attribute != "Record" and not has_color:
+                    # Single group-by, multi agg optimization
+                    # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                    optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+        
+        # optimizer.execute_single_groupbys()
+
+        for i, vis in enumerate(vislist):
 
             if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
-                PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed)
+                PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed_all[i])
             elif vis.mark == "histogram":
                 PandasExecutor.execute_binning(ldf, vis)
             elif vis.mark == "heatmap":
@@ -237,9 +269,13 @@ class PandasExecutor(Executor):
                 # if color is specified, need to group by groupby_attr and color_attr
                 if has_color:
                     groupby_result = vis.data.groupby([groupby_attr.attribute, color_attr.attribute], dropna=False, history=False)
+                    groupby_result = groupby_result.agg(agg_func)
                 else:
-                    groupby_result = vis.data.groupby(groupby_attr.attribute, dropna=False, history=False)
-                groupby_result = groupby_result.agg(agg_func)
+                    groupby_result = optimizer.retrieve_executed_single_groupby(groupby_attr.attribute, agg_func, vis)
+                    if groupby_result is None:
+                        groupby_result = vis.data.groupby(groupby_attr.attribute, dropna=False, history=False)
+                        groupby_result = groupby_result.agg(agg_func)
+                
                 intermediate = groupby_result.reset_index()
                 vis._vis_data = intermediate.__finalize__(vis.data)
             result_vals = list(vis.data[groupby_attr.attribute])
