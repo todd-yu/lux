@@ -22,7 +22,6 @@ from lux.utils.date_utils import is_datetime_series
 from lux.utils.message import Message
 from lux.utils.utils import check_import_lux_widget
 from typing import Dict, Union, List, Callable
-from sortedcontainers import SortedDict
 
 # from lux.executor.Executor import *
 import warnings
@@ -91,9 +90,6 @@ class LuxDataFrame(pd.DataFrame):
         self._min_max = None
         self.pre_aggregated = None
         self._type_override = {}
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self._histograms = {} #histogram per column
         warnings.formatwarning = lux.warning_format
 
     @property
@@ -124,26 +120,12 @@ class LuxDataFrame(pd.DataFrame):
         """
         Compute dataset metadata and statistics
         """
-        # print("metadata computed for ", self)
         if len(self) > 0:
             if lux.config.executor.name != "SQLExecutor":
                 lux.config.executor.compute_stats(self)
             lux.config.executor.compute_dataset_metadata(self)
             self._infer_structure()
             self._metadata_fresh = True
-
-    
-    def compute_histogram_per_column(self):
-        """
-        manually compute histogram of each column, if no histogram exists
-
-        each histogram is stored as an ordered dict of value -> freq, sorted on value
-        """
-        for attribute in self.columns:
-            if attribute not in self._histograms:
-                self._histograms[attribute] = self[attribute].value_counts().to_dict(SortedDict)
-
-
 
     def maintain_metadata(self):
         """
@@ -180,7 +162,6 @@ class LuxDataFrame(pd.DataFrame):
         """
         Expire all saved metadata to trigger a recomputation the next time the data is required.
         """
-        # print("metadata expired!")
         if lux.config.lazy_maintain:
             self._metadata_fresh = False
             self._data_type = None
@@ -194,24 +175,82 @@ class LuxDataFrame(pd.DataFrame):
     #####################
     def __getattr__(self, name):
         ret_value = super(LuxDataFrame, self).__getattr__(name)
-        self.expire_metadata()
+        # self.expire_metadata()
         self.expire_recs()
         return ret_value
 
     def _set_axis(self, axis, labels):
         super(LuxDataFrame, self)._set_axis(axis, labels)
-        self.expire_metadata()
+        # self.expire_metadata()
         self.expire_recs()
 
     def _update_inplace(self, *args, **kwargs):
         super(LuxDataFrame, self)._update_inplace(*args, **kwargs)
-        self.expire_metadata()
+        # self.expire_metadata()
         self.expire_recs()
 
     def _set_item(self, key, value):
         super(LuxDataFrame, self)._set_item(key, value)
-        self.expire_metadata()
+        # self.expire_metadata()
         self.expire_recs()
+
+    def _insert_item(self, column, item):
+        if not self._histograms:
+            pass
+
+        curr_histogram = self._histograms[column]
+        if item in curr_histogram:
+           curr_histogram[item] += 1
+        else:
+            curr_histogram[item] = 1
+
+
+    def _delete_item(self, column, item):
+        if not self._histograms:
+            pass
+
+        curr_histogram = self._histograms[column]
+        assert item in curr_histogram, "deletion encountered very bad error"
+        curr_histogram[item] -= 1
+        if curr_histogram[item] == 0:
+            curr_histogram.pop(item)
+
+
+    # ======= BEGIN Incremental Operations =======
+
+    def add_row(self, row):
+        """
+        append row ROW to the current dataframe; note that ROW must follow the same dataframe schema
+        """
+        super(LuxDataFrame, self).append(row, inplace=True) 
+        for field in row:
+            self._insert_item(field, row[field])
+
+
+    def delete_row(self, row_index):
+        """
+        remove row located at ROW_INDEX from this dataframe
+        """
+        for field in self.columns:
+            self._delete_item(field, self.loc[row_index, field])
+        super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
+
+
+    def edit_row(self, row_index, column_val_dict):
+        """
+        Edit row at ROW_INDEX with values from COLUMN_VAL_DICT. 
+        COLUMN_VAL_DICT must be a dict mapping column name to new value
+
+        """
+        for field in column_val_dict:
+            new_item = column_val_dict[field]
+
+            self._delete_item(field, self.loc[row_index, field])
+            self._insert_item(field, new_item)
+
+            self.loc[row_index, field] = new_item
+            
+    # ======= END Incremental Operations =======
 
     def _infer_structure(self):
         # If the dataframe is very small and the index column is not a range index, then it is likely that this is an aggregated data
@@ -341,7 +380,6 @@ class LuxDataFrame(pd.DataFrame):
 
     @property
     def recommendation(self):
-        print("Recommendation called!")
         if self._recommendation is not None and self._recommendation == {}:
             from lux.processor.Compiler import Compiler
 
