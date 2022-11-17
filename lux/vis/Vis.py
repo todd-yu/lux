@@ -37,6 +37,9 @@ class Vis:
         self.score = score
         self._all_column = False
         self.approx = False
+        self.needs_incremental = False
+        self.interestingness_cache = {}
+        self.interestingness_func = None
         self.refresh_source(self._source)
 
     def __repr__(self):

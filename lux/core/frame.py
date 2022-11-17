@@ -22,6 +22,9 @@ from lux.utils.date_utils import is_datetime_series
 from lux.utils.message import Message
 from lux.utils.utils import check_import_lux_widget
 from typing import Dict, Union, List, Callable
+from sortedcontainers import SortedDict
+from lux.utils import utils
+# from lux.interestingness.interestingness import interestingness
 
 # from lux.executor.Executor import *
 import warnings
@@ -90,6 +93,10 @@ class LuxDataFrame(pd.DataFrame):
         self._min_max = None
         self.pre_aggregated = None
         self._type_override = {}
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._histograms = {} #histogram per column
+            self._incrementalized = False #incremental computation
         warnings.formatwarning = lux.warning_format
 
     @property
@@ -176,23 +183,23 @@ class LuxDataFrame(pd.DataFrame):
     def __getattr__(self, name):
         ret_value = super(LuxDataFrame, self).__getattr__(name)
         # self.expire_metadata()
-        self.expire_recs()
+        # self.expire_recs()
         return ret_value
 
     def _set_axis(self, axis, labels):
         super(LuxDataFrame, self)._set_axis(axis, labels)
         # self.expire_metadata()
-        self.expire_recs()
+        # self.expire_recs()
 
     def _update_inplace(self, *args, **kwargs):
         super(LuxDataFrame, self)._update_inplace(*args, **kwargs)
         # self.expire_metadata()
-        self.expire_recs()
+        # self.expire_recs()
 
     def _set_item(self, key, value):
         super(LuxDataFrame, self)._set_item(key, value)
         # self.expire_metadata()
-        self.expire_recs()
+        # self.expire_recs()
 
     def _insert_item(self, column, item):
         if not self._histograms:
@@ -201,12 +208,16 @@ class LuxDataFrame(pd.DataFrame):
         curr_histogram = self._histograms[column]
         if item in curr_histogram:
            curr_histogram[item] += 1
+           return False
         else:
             curr_histogram[item] = 1
+            self.cardinality[column] += 1
+            self.unique_values[column] = curr_histogram.keys()
+            return True
 
 
     def _delete_item(self, column, item):
-        if not self._histograms:
+        if not self._histograms or column not in self._histograms:
             pass
 
         curr_histogram = self._histograms[column]
@@ -214,17 +225,53 @@ class LuxDataFrame(pd.DataFrame):
         curr_histogram[item] -= 1
         if curr_histogram[item] == 0:
             curr_histogram.pop(item)
+            self.cardinality[column] -= 1
+            self.unique_values[column] = curr_histogram.keys()
+            return True
+        else:
+            return False
 
+
+    def compute_histogram_per_column(self):
+        """
+        manually compute histogram of each column, if no histogram exists
+
+        each histogram is stored as an ordered dict of value -> freq, sorted on value
+        """
+        for attribute in self.columns:
+            if attribute not in self._histograms:
+                self._histograms[attribute] = self[attribute].value_counts().to_dict(SortedDict)
 
     # ======= BEGIN Incremental Operations =======
+
+    def update_interestingness(self, delete=False, row=None):
+        if not self._recommendation:
+            pass
+
+        from lux.interestingness.interestingness import interestingness
+
+        self._incrementalized = True
+
+        for action_type in self._recommendation:
+            vlist = self._recommendation[action_type]
+            for vis in vlist:
+                if vis.needs_incremental and vis.interestingness_func:
+                    vis.score = vis.interestingness_func(vis, self, 
+                        **vis.kwargs, incrementalize=True, delete=delete, row=row)
+                    
+            self._recommendation[action_type] = vlist.showK()
+
+
+
 
     def add_row(self, row):
         """
         append row ROW to the current dataframe; note that ROW must follow the same dataframe schema
         """
         super(LuxDataFrame, self).append(row, inplace=True) 
-        for field in row:
+        for field in self.columns:
             self._insert_item(field, row[field])
+        self.update_interestingness(delete=False, row=row)
 
 
     def delete_row(self, row_index):
@@ -233,7 +280,9 @@ class LuxDataFrame(pd.DataFrame):
         """
         for field in self.columns:
             self._delete_item(field, self.loc[row_index, field])
+        row = self.loc[row_index]
         super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
+        self.update_interestingness(delete=True, row=row)
 
 
     def edit_row(self, row_index, column_val_dict):
@@ -244,7 +293,8 @@ class LuxDataFrame(pd.DataFrame):
         """
         for field in column_val_dict:
             new_item = column_val_dict[field]
-
+            if new_item == self.loc[row_index, field]:
+                continue
             self._delete_item(field, self.loc[row_index, field])
             self._insert_item(field, new_item)
 
@@ -380,12 +430,29 @@ class LuxDataFrame(pd.DataFrame):
 
     @property
     def recommendation(self):
+
+        if self._incrementalized:
+            from lux.interestingness.interestingness import interestingness
+
+            for action_type in self._recommendation:
+                vlist = self._recommendation[action_type]
+                for vis in vlist:
+                    if not vis.needs_incremental:
+                        vis.score = interestingness(vis, self)
+                        
+                self._recommendation[action_type] = vlist.showK()
+                self.show_all_column_vis()
+                if lux.config.render_widget:
+                    self._widget = self.render_widget()
+            self._incrementalized = False
+
         if self._recommendation is not None and self._recommendation == {}:
             from lux.processor.Compiler import Compiler
 
             self.maintain_metadata()
             self.current_vis = Compiler.compile_intent(self, self._intent)
             self.maintain_recs()
+
         return self._recommendation
 
     @recommendation.setter

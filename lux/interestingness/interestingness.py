@@ -27,6 +27,8 @@ from lux.interestingness.similarity import preprocess, euclidean_dist
 from lux.vis.VisList import VisList
 import warnings
 
+from bisect import bisect_left
+
 
 def interestingness(vis: Vis, ldf: LuxDataFrame) -> int:
     """
@@ -90,7 +92,7 @@ def interestingness(vis: Vis, ldf: LuxDataFrame) -> int:
             if n_filter == 0 and "Number of Records" in vis.data:
                 if "Number of Records" in vis.data:
                     v = vis.data["Number of Records"]
-                    return skewness(v)
+                    return skewness(vis, v, dimension_lst, measure_lst)
             elif n_filter == 1 and "Number of Records" in vis.data:
                 return deviation_from_overall(vis, ldf, filter_specs, "Number of Records")
             return -1
@@ -177,10 +179,63 @@ def get_filtered_size(filter_specs, ldf):
     return len(result)
 
 
-def skewness(v):
-    from scipy.stats import skew
+def skewness(vis: Vis, v, dimension_lst, measure_lst, 
+    incrementalize=False, delete=False, row=None):
 
-    return skew(v)
+    if incrementalize:
+        col = measure_lst[0].attribute
+        mean, M2, = vis.interestingness_cache["mean"], vis.interestingness_cache["M2"]
+        count = len(vis.data)
+
+        def sub_element(count, mean, M2, oldVal):
+            count -= 1
+            delta = oldVal - mean
+            mean -= delta/count
+            delta2 = oldVal - mean
+            M2 -= delta * delta2
+            return count, mean, M2
+        
+        def add_element(count, mean, M2, newVal):
+            count += 1
+            delta = newVal - mean
+            mean += delta/count
+            delta2 = newVal - mean
+            M2 += delta * delta2
+            return count, mean, M2
+
+
+        if delete:
+            deleted_val = row[col]
+            idx = bisect_left(vis.data[col].values, deleted_val)
+            prev_num_records = vis.data.iloc[idx]["Number of Records"]
+            count, mean, M2 = sub_element(count, mean, M2, prev_num_records)
+            count, mean, M2 = add_element(count, mean, M2, prev_num_records - 1)
+        else:
+            added_val = row[col]
+            idx = bisect_left(vis.data[col].values, added_val)
+            prev_num_records = vis.data.iloc[idx]["Number of Records"]
+            count, mean, M2 = sub_element(count, mean, M2, prev_num_records)
+            count, mean, M2 = add_element(count, mean, M2, prev_num_records + 1)
+
+        vis.interestingness_cache["mean"] = mean
+        vis.interestingness_cache["M2"] = M2
+        return float((mean ** 3) / ((M2 / count) ** 1.5))
+
+    
+    vis.needs_incremental = True
+    vis.interestingness_cache = {}
+    vis.kwargs = {
+        "dimension_lst": dimension_lst,
+        "measure_lst": measure_lst
+        }
+    vis.interestingness_func = skewness
+
+    curr_mean = np.mean(v)
+    vis.interestingness_cache["mean"] = curr_mean
+    M2 = np.sum((v - curr_mean) ** 2)
+    vis.interestingness_cache["M2"] = M2
+
+    return float((curr_mean ** 3) / ((M2 / len(vis.data)) ** 1.5))
 
 
 def weighted_avg(x, w):
@@ -202,6 +257,7 @@ def deviation_from_overall(
     filter_specs: list,
     msr_attribute: str,
     exclude_nan: bool = True,
+    incrementalize=False, delete=False, row=None
 ) -> int:
     """
     Difference in bar chart/histogram shape from overall chart
@@ -223,6 +279,46 @@ def deviation_from_overall(
     int
             Score describing how different the vis is from the overall vis
     """
+
+    if incrementalize:
+        v_filter_size = get_filtered_size(filter_specs, ldf)
+        v_size = len(vis.data)
+
+        vis.interestingness_cache["filtered_vis"] = v_filter
+        vis.interestingness_cache["unfiltered_vis"] = v
+
+        sig = v_filter_size / v_size 
+        rankSig = vis.interestingness_cache["rankSig"]
+
+        squared_norm = vis.interestingness_cache["euc"] ** 2
+        newval = row[msr_attribute]
+        if newval in v_filter:
+            # filter doesnt change vis
+            increment = newval
+        else:
+            increment = 0 #filter changes vis
+
+        if delete:
+            result = squared_norm - ((increment - (newval))**2)
+        else:
+            result = squared_norm + ((increment - (newval))**2)
+
+        result = result ** (0.5)
+        vis.interestingness_cache["euc"] = result
+
+        return sig * rankSig * result
+
+
+    # begin incrementalize
+    vis.needs_incremental = True
+    vis.interestingness_cache = {}
+    vis.kwargs = {
+        "filter_specs": filter_specs,
+        "msr_attribute": msr_attribute,
+        "exclude_nan": exclude_nan
+        }
+    vis.interestingness_func = deviation_from_overall
+
     if lux.config.executor.name == "PandasExecutor":
         if exclude_nan:
             vdata = vis.data.dropna()
@@ -276,10 +372,20 @@ def deviation_from_overall(
 
     from scipy.spatial.distance import euclidean
 
-    return sig * rankSig * euclidean(v, v_filter)
+    euc = euclidean(v, v_filter)
+
+    # cache interestingness factors
+    vis.interestingness_cache["rankSig"] = rankSig
+    vis.interestingness_cache["euc"] = euc
+
+    vis.interestingness_cache["filtered_vis"] = v_filter
+    vis.interestingness_cache["unfiltered_vis"] = v
+
+    return sig * rankSig * euc
 
 
-def unevenness(vis: Vis, ldf: LuxDataFrame, measure_lst: list, dimension_lst: list) -> int:
+def unevenness(vis: Vis, ldf: LuxDataFrame, measure_lst: list, dimension_lst: list,
+incrementalize=False, delete=False, row=None) -> int:
     """
     Measure the unevenness of a bar chart vis.
     If a bar chart is highly uneven across the possible values, then it may be interesting. (e.g., USA produces lots of cars compared to Japan and Europe)
@@ -299,10 +405,40 @@ def unevenness(vis: Vis, ldf: LuxDataFrame, measure_lst: list, dimension_lst: li
     int
             Score describing how uneven the bar chart is.
     """
+    col = measure_lst[0].attribute
+    attr = dimension_lst[0].attribute
+    prev_cardinality = ldf.cardinality[attr] if col == "Record" else ldf.cardinality[col]
+    if incrementalize and vis.interestingness_cache.get("C") == prev_cardinality:
+        squared_norm = vis.interestingness_cache["euc"] ** 2
+        C = ldf.cardinality[attr]
+        D = (0.9) ** C  # cardinality-based discounting factor
+        if col == "Record":
+            increment = 1
+        else:
+            increment = row[col]
+
+        if delete:
+            result = squared_norm - ((increment - (1/C))**2)
+        else:
+            result = squared_norm + ((increment - (1/C))**2)
+
+        result = result ** (0.5)
+        vis.interestingness_cache["euc"] = result
+        return D * result
+
+    # begin incremental computation
+    vis.needs_incremental = True
+    vis.interestingness_cache = {}
+    vis.kwargs = {
+        "measure_lst": measure_lst,
+        "dimension_lst": dimension_lst
+        }
+    vis.interestingness_func = unevenness
+    
+
     v = vis.data[measure_lst[0].attribute]
     v = v / v.sum()  # normalize by total to get ratio
     v = v.fillna(0)  # Some bar values may be NaN
-    attr = dimension_lst[0].attribute
     if isinstance(attr, pd._libs.tslibs.timestamps.Timestamp):
         # If timestamp, use the _repr_ (e.g., TimeStamp('2020-04-05 00.000')--> '2020-04-05')
         attr = str(attr._date_repr)
@@ -311,7 +447,13 @@ def unevenness(vis: Vis, ldf: LuxDataFrame, measure_lst: list, dimension_lst: li
     v_flat = pd.Series([1 / C] * len(v))
     if is_datetime(v):
         v = v.astype("int")
-    return D * euclidean(v, v_flat)
+    euc = euclidean(v, v_flat)
+
+    # cache for incremental
+    vis.interestingness_cache["euc"] = euc
+    vis.interestingness_cache["v_flat"] = v_flat
+    vis.interestingness_cache["C"] = C
+    return D * euc
 
 
 def mutual_information(v_x: list, v_y: list) -> int:
