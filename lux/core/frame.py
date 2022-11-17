@@ -441,9 +441,9 @@ class LuxDataFrame(pd.DataFrame):
                         vis.score = interestingness(vis, self)
                         
                 self._recommendation[action_type] = vlist.showK()
-                self.show_all_column_vis()
-                if lux.config.render_widget:
-                    self._widget = self.render_widget()
+                # self.show_all_column_vis()
+                # if lux.config.render_widget:
+                #     self._widget = self.render_widget()
             self._incrementalized = False
 
         if self._recommendation is not None and self._recommendation == {}:
