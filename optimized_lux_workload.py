@@ -2,6 +2,7 @@ import lux
 import pandas as pd
 import click
 import time
+from tqdm import tqdm
 
 lux.config.topk = False
 lux.config.sampling = False
@@ -14,7 +15,7 @@ lux.config.sampling = False
 def main(num_trials, log_file_path, data_file_path):
     log_file = open(log_file_path, "a")
 
-    for _ in range(int(num_trials)):
+    for _ in tqdm(range(int(num_trials))):
 
         df = pd.read_csv(data_file_path) # "./data/500k.csv"
         start = time.perf_counter()
