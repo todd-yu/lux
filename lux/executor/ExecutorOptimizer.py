@@ -61,7 +61,8 @@ class ExecutorOptimizer:
 
             # Union all the vis data tables together, apply agg functions to the columns (ensure the same column only ever has one agg applied to it) and then filter out irrelevant columns when retrieving
 
-            union = pd.concat([info[0].data for info in agg_funcs_info])
+            #union = pd.concat([info[0].data for info in agg_funcs_info])
+            union = agg_funcs_info[0][0].data
             # for i in range(1, len(agg_funcs_info)):
             #     union = pd.concat(union, (agg_funcs_info[i][0].data))
 
@@ -89,6 +90,13 @@ class ExecutorOptimizer:
         
         # print(vis.data.columns)
         # print(self._executed_single_groupbys[key].columns)
-        agg = self._executed_single_groupbys[key][vis.data.columns]
+
+        # TODO: THIS IS COPIED FROM PANDAS EXECUTOR
+        attributes = set([])
+        for clause in vis._inferred_intent:
+            if clause.attribute != "Record":
+                attributes.add(clause.attribute)
+
+        agg = self._executed_single_groupbys[key][list(attributes)]
         return agg
         # return agg[attr, vis.title]

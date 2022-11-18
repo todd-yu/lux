@@ -140,14 +140,8 @@ class PandasExecutor(Executor):
 
             filter_executed = PandasExecutor.execute_filter(vis)
             filter_executed_all[i] = filter_executed
-            # Select relevant data based on attribute information
-            attributes = set([])
-            for clause in vis._inferred_intent:
-                if clause.attribute != "Record":
-                    attributes.add(clause.attribute)
-            # TODO: Add some type of cap size on Nrows ?
-            vis._vis_data = vis._vis_data[list(attributes)]
-                
+
+            do_project = True                
             if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                 if filter_executed: # No optimization possible
                     continue
@@ -174,9 +168,20 @@ class PandasExecutor(Executor):
                 if measure_attr != "" and measure_attr.attribute != "Record" and not has_color:
                     # Single group-by, multi agg optimization
                     # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                    do_project = False
                     optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+
+            if do_project:
+                # Select relevant data based on attribute information
+                attributes = set([])
+                for clause in vis._inferred_intent:
+                    if clause.attribute != "Record":
+                        attributes.add(clause.attribute)
+                # TODO: Add some type of cap size on Nrows ?
+                vis._vis_data = vis._vis_data[list(attributes)]
+
         
-        # optimizer.execute_single_groupbys()
+        optimizer.execute_single_groupbys()
 
         for i, vis in enumerate(vislist):
 
