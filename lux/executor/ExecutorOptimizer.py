@@ -50,47 +50,30 @@ class ExecutorOptimizer:
     def execute_single_groupbys(self):
         if not self.active:
             return
-        # TODO: Ensure that vis titles are unique
+        # attr = group by attribute
         for attr, agg_funcs_info in self._single_groupby_cache.items():
             # Invariants:
-            # 1. Vis tables for single group bys have two columns: the group by attr and the col to agg
-            # 2. The agg function may or may not be the same for every vis
-            # 3. The same column name across multiple vis tables has the same data but maybe not the same agg function (?)
-            # 4. If the same agg function was used on the same column, then a simple union works
+            # 1. The same column name across multiple vis tables has the same data but maybe not the same agg function (?)
+            # 2. The vis data table for every inputted vis should be the same.
 
-            # Union all the vis data tables together, apply agg functions to the columns (ensure the same column only ever has one agg applied to it) and then filter out irrelevant columns when retrieving
+            # Apply agg functions to the columns (ensure the same column only ever has one agg applied to it) and then filter out irrelevant columns when retrieving
 
-            #union = pd.concat([info[0].data for info in agg_funcs_info])
             union = agg_funcs_info[0][0].data
-            # for i in range(1, len(agg_funcs_info)):
-            #     union = pd.concat(union, (agg_funcs_info[i][0].data))
 
             groupby_result = union.groupby(attr, dropna=False, history=False)
             funcs = set([info[1] for info in agg_funcs_info])
-            if len(funcs) != 1:
-                # TODO: Support multiple agg funcs
-                continue
-            
-            groupby_result = groupby_result.agg(list(funcs)[0]).reset_index()
 
-            # print(groupby_result)
-            for (vis, agg_func) in agg_funcs_info:
-                # groupby_result = vis.data.groupby(attr, dropna=False, history=False)
-                # self._executed_single_groupbys[(attr, agg_func)] = groupby_result.agg(agg_func)
-                self._executed_single_groupbys[(attr, agg_func)] = groupby_result
+            for func in funcs:
+                # TODO: This is inefficient as we will compute aggs for unneeded columns
+                agg = groupby_result.agg(func).reset_index()
+                self._executed_single_groupbys[(attr, func)] = agg
 
     def retrieve_executed_single_groupby(self, attr, agg_func, vis):
         key = (attr, agg_func)
         if key not in self._executed_single_groupbys:
             return None
 
-        # groupby_result = vis.data.groupby(attr, dropna=False, history=False)
-        # self._executed_single_groupbys[(attr, agg_func)] = groupby_result.agg(agg_func)
-        
-        # print(vis.data.columns)
-        # print(self._executed_single_groupbys[key].columns)
-
-        # TODO: THIS IS COPIED FROM PANDAS EXECUTOR
+        # THIS IS COPIED FROM PANDAS EXECUTOR
         attributes = set([])
         for clause in vis._inferred_intent:
             if clause.attribute != "Record":
@@ -98,4 +81,3 @@ class ExecutorOptimizer:
 
         agg = self._executed_single_groupbys[key][list(attributes)]
         return agg
-        # return agg[attr, vis.title]
