@@ -142,34 +142,36 @@ class PandasExecutor(Executor):
             filter_executed_all[i] = filter_executed
 
             do_project = True                
-            if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
-                if filter_executed: # No optimization possible
-                    continue
 
-                x_attr = vis.get_attr_by_channel("x")[0]
-                y_attr = vis.get_attr_by_channel("y")[0]
-                has_color = False
-                groupby_attr = ""
-                measure_attr = ""
-                if x_attr.aggregation is None or y_attr.aggregation is None:
-                    continue
-                if y_attr.aggregation != "":
-                    groupby_attr = x_attr
-                    measure_attr = y_attr
-                    agg_func = y_attr.aggregation
-                if x_attr.aggregation != "":
-                    groupby_attr = y_attr
-                    measure_attr = x_attr
-                    agg_func = x_attr.aggregation
-                # checks if color is specified in the Vis
-                if len(vis.get_attr_by_channel("color")) == 1:
-                    has_color = True
+            if optimizer.active:
+                if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
+                    if filter_executed: # No optimization possible
+                        continue
 
-                if measure_attr != "" and measure_attr.attribute != "Record" and not has_color:
-                    # Single group-by, multi agg optimization
-                    # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
-                    do_project = False
-                    optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                    x_attr = vis.get_attr_by_channel("x")[0]
+                    y_attr = vis.get_attr_by_channel("y")[0]
+                    has_color = False
+                    groupby_attr = ""
+                    measure_attr = ""
+                    if x_attr.aggregation is None or y_attr.aggregation is None:
+                        continue
+                    if y_attr.aggregation != "":
+                        groupby_attr = x_attr
+                        measure_attr = y_attr
+                        agg_func = y_attr.aggregation
+                    if x_attr.aggregation != "":
+                        groupby_attr = y_attr
+                        measure_attr = x_attr
+                        agg_func = x_attr.aggregation
+                    # checks if color is specified in the Vis
+                    if len(vis.get_attr_by_channel("color")) == 1:
+                        has_color = True
+
+                    if measure_attr != "" and measure_attr.attribute != "Record" and not has_color:
+                        # Single group-by, multi agg optimization
+                        # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                        do_project = False
+                        optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
 
             if do_project:
                 # Select relevant data based on attribute information
@@ -197,16 +199,16 @@ class PandasExecutor(Executor):
                     vis._mark = "heatmap"
                     bstart = time.time()
                     PandasExecutor.execute_2D_binning(vis)
-                    print(f"Heatmap executed in {time.time() - bstart}")
+                    # print(f"Heatmap executed in {time.time() - bstart}")
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
         print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
-        for k in optimizer.total_access:
-            hit_rate = 0
-            if optimizer.total_access[k] > 0:
-                hit_rate = optimizer.hits[k] / optimizer.total_access[k]
-            print(f"Total accesses for {k}: {optimizer.total_access[k]}, Hit rate for {k}: {hit_rate}")
+        # for k in optimizer.total_access:
+        #     hit_rate = 0
+        #     if optimizer.total_access[k] > 0:
+        #         hit_rate = optimizer.hits[k] / optimizer.total_access[k]
+        #     print(f"Total accesses for {k}: {optimizer.total_access[k]}, Hit rate for {k}: {hit_rate}")
 
     @staticmethod
     def execute_aggregate(vis: Vis, isFiltered=True):

@@ -1,13 +1,9 @@
 import pandas as pd
 import numpy as np
-from lux.vis.VisList import VisList
-from lux.vis.Vis import Vis
-from lux.core.frame import LuxDataFrame
 from lux.core.series import LuxSeries
-from lux.executor.Executor import Executor
-import time
 
 class ExecutorOptimizer:
+
     def __init__(self):
         self._cache = {}
 
@@ -22,6 +18,7 @@ class ExecutorOptimizer:
 
         self._single_groupby_cache = {}
         self._executed_single_groupbys = {}
+        self.active = True
 
     def cut(self, x, bins):
         hash = pd.util.hash_pandas_object(x).values.tobytes()
@@ -51,6 +48,8 @@ class ExecutorOptimizer:
         self._single_groupby_cache[attr].append((vis, agg_func))
 
     def execute_single_groupbys(self):
+        if not self.active:
+            return
         # TODO: Ensure that vis titles are unique
         for attr, agg_funcs_info in self._single_groupby_cache.items():
             # Invariants:
