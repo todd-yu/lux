@@ -3,6 +3,9 @@ import pandas as pd
 import click
 import time
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings("ignore")
+
 
 lux.config.topk = False
 lux.config.sampling = False
