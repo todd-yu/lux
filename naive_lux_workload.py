@@ -24,10 +24,10 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
     lux.config.sampling = sampling
 
     log_file = open(log_file_path, "a")
+    df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
     for _ in tqdm(range(int(num_trials))):
 
-        df = pd.read_csv(data_file_path) # "./data/500k.csv"
         start = time.perf_counter()
         first_rec = df.recommendation
 
@@ -39,6 +39,9 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
         end = time.perf_counter()
 
         log_file.write(f"{str(end - start)} \n")
+
+        df.expire_metadata()
+        df.expire_recs()
 
     log_file.flush()
     log_file.close()
