@@ -13,3 +13,4 @@ build/
 .idea/
 tests/.coverage
 tests/coverage.xml
+data/
