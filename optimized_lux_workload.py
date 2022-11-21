@@ -21,11 +21,13 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
 
     lux.config.topk = LUX_DEFAULT_TOP_K if topk else False
     lux.config.sampling = sampling
-    
+
     log_file = open(log_file_path, "a")
-    df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
     for _ in tqdm(range(int(num_trials))):
+
+        # moved inside the loop due to repeated deletes
+        df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
         start = time.perf_counter()
         first_rec = df.recommendation
