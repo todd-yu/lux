@@ -1,12 +1,15 @@
 import pandas as pd
 import numpy as np
 from lux.core.series import LuxSeries
+import time
 
 class ExecutorOptimizer:
 
     def __init__(self):
-        self._cache = {}
+        self.active = True
 
+        # Cache optimization
+        self._cache = {}
         self.hits = {
             "histogram": 0,
             "cut": 0
@@ -16,9 +19,15 @@ class ExecutorOptimizer:
             "cut": 0
         }
 
+        # Single groupby optimization
         self._single_groupby_cache = {}
         self._executed_single_groupbys = {}
-        self.active = True
+
+        # Multi groupby optimization
+        self.hierarchical_count_groupby_K = 3
+        self._hierarchical_count_groupby_attrs = []
+        self._executed_hierarchical_count_groupbys = {}
+        
 
     def cut(self, x, bins):
         hash = pd.util.hash_pandas_object(x).values.tobytes()
@@ -80,4 +89,67 @@ class ExecutorOptimizer:
                 attributes.add(clause.attribute)
 
         agg = self._executed_single_groupbys[key][list(attributes)]
+        return agg
+
+    # These are only for COUNTs
+    def add_relevant_hierarchical_count_groupby(self, attr, vis):
+        self._hierarchical_count_groupby_attrs.append((attr, vis))
+
+    def execute_hierarchical_count_groupbys(self):
+        if not self.active:
+            return
+        batch = []
+        attributes = set([])
+        for i, (attr, vis) in enumerate(self._hierarchical_count_groupby_attrs):
+            batch.append(attr)
+            for clause in vis._inferred_intent:
+                if clause.attribute != "Record":
+                    attributes.add(clause.attribute)
+
+            if len(batch) == self.hierarchical_count_groupby_K or i == len(self._hierarchical_count_groupby_attrs) - 1:
+                # Copied from execute_aggregate
+                # TODO: possible opt: give batch an ID and then map result of groupby to batch
+                index_name = vis.data.index.name
+                if index_name == None:
+                    index_name = "index"
+
+                batch_col_name = "batch_col_INTERNAL_ONLY"
+                # vis._vis_data[batch_col_name] = vis.data[list(attributes)].apply(lambda row: str(row), axis=1)
+                vis._vis_data[batch_col_name] = vis.data[batch].apply(lambda x: pd.factorize(x)[0], axis=1)
+                
+                #**{batch_col_name: vis.data[batch].agg("-".join, axis=1)})
+                pre_group = vis._vis_data
+
+                # THIS IS COPIED FROM PANDAS EXECUTOR
+                print("pre group:", pre_group[batch_col_name])
+
+                start_time = time.time()
+                first_pass = pre_group.groupby("batch_col_INTERNAL_ONLY", dropna=False, history=False).size().rename("Record").reset_index()
+                print(f"First pass time [{batch}]: {time.time() - start_time}")
+                print(first_pass)
+                for attr in batch:
+                    self._executed_hierarchical_count_groupbys[attr] = first_pass
+
+                batch.clear()
+                attributes.clear()
+    
+
+    def retrieve_executed_hierarchical_count_groupby(self, attr, vis):
+        if attr not in self._executed_hierarchical_count_groupbys:
+            return None
+        first_pass = self._executed_hierarchical_count_groupbys[attr]
+
+        # Copied from execute_aggregate
+        index_name = vis.data.index.name
+        if index_name == None:
+            index_name = "index"
+
+        # # THIS IS COPIED FROM PANDAS EXECUTOR
+        attributes = set([])
+        for clause in vis._inferred_intent:
+            if clause.attribute != "Record":
+                attributes.add(clause.attribute)
+
+        agg = first_pass.groupby(attr, dropna=False, history=False).sum().reset_index().rename({index_name: "Record"})
+
         return agg

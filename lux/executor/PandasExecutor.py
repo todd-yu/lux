@@ -126,6 +126,7 @@ class PandasExecutor(Executor):
         PandasExecutor.execute_sampling(ldf)
 
         filter_executed_all = {}
+        optimizer.active = True
 
         for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe
@@ -167,11 +168,15 @@ class PandasExecutor(Executor):
                     if len(vis.get_attr_by_channel("color")) == 1:
                         has_color = True
 
-                    if measure_attr != "" and measure_attr.attribute != "Record" and not has_color:
-                        # Single group-by, multi agg optimization
-                        # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                    if measure_attr != "" and not has_color:
                         do_project = False
-                        optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                        if measure_attr.attribute == "Record":
+                            # These can only possibly be count aggregates
+                            optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                        else:
+                            # Single group-by, multi agg optimization
+                            # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                            optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
 
             if do_project:
                 # Select relevant data based on attribute information
@@ -182,8 +187,11 @@ class PandasExecutor(Executor):
                 # TODO: Add some type of cap size on Nrows ?
                 vis._vis_data = vis._vis_data[list(attributes)]
 
-        
         optimizer.execute_single_groupbys()
+        start_time = time.time()
+        optimizer.execute_hierarchical_count_groupbys()
+        # print("Hierarchical count groupby time: ", time.time() - start_time)
+
 
         for i, vis in enumerate(vislist):
 
@@ -199,7 +207,6 @@ class PandasExecutor(Executor):
                     vis._mark = "heatmap"
                     bstart = time.time()
                     PandasExecutor.execute_2D_binning(vis)
-                    # print(f"Heatmap executed in {time.time() - bstart}")
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
@@ -263,14 +270,22 @@ class PandasExecutor(Executor):
                 if index_name == None:
                     index_name = "index"
 
-                vis._vis_data = vis.data.reset_index()
+                # vis._vis_data = vis.data.reset_index()
                 # if color is specified, need to group by groupby_attr and color_attr
-
                 if has_color:
+                    vis._vis_data = vis.data.reset_index()
                     vis._vis_data = (vis.data.groupby([groupby_attr.attribute, color_attr.attribute], dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
                     vis._vis_data = vis.data[[groupby_attr.attribute, color_attr.attribute, "Record"]]
                 else:
-                    vis._vis_data = (vis.data.groupby(groupby_attr.attribute, dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
+                    # OPTIMIZATION
+                    groupby_result = optimizer.retrieve_executed_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                    start_time = time.time()
+                    if groupby_result is not None:
+                        vis._vis_data = groupby_result
+                    else:
+                        vis._vis_data = vis.data.reset_index()
+                        vis._vis_data = (vis.data.groupby(groupby_attr.attribute, dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
+
                     vis._vis_data = vis.data[[groupby_attr.attribute, "Record"]]
             else:
                 # if color is specified, need to group by groupby_attr and color_attr
@@ -278,6 +293,7 @@ class PandasExecutor(Executor):
                     groupby_result = vis.data.groupby([groupby_attr.attribute, color_attr.attribute], dropna=False, history=False)
                     groupby_result = groupby_result.agg(agg_func)
                 else:
+                    # OPTIMIZATION
                     groupby_result = optimizer.retrieve_executed_single_groupby(groupby_attr.attribute, agg_func, vis)
                     if groupby_result is None:
                         groupby_result = vis.data.groupby(groupby_attr.attribute, dropna=False, history=False)
@@ -285,6 +301,7 @@ class PandasExecutor(Executor):
                 
                 intermediate = groupby_result.reset_index()
                 vis._vis_data = intermediate.__finalize__(vis.data)
+            
             result_vals = list(vis.data[groupby_attr.attribute])
             # create existing group by attribute combinations if color is specified
             # this is needed to check what combinations of group_by_attr and color_attr values have a non-zero number of elements in them
