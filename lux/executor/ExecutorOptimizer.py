@@ -24,7 +24,7 @@ class ExecutorOptimizer:
         self._executed_single_groupbys = {}
 
         # Multi groupby optimization
-        self.hierarchical_count_groupby_K = 3
+        self.hierarchical_count_groupby_K = 6
         self._hierarchical_count_groupby_attrs = []
         self._executed_hierarchical_count_groupbys = {}
         
@@ -113,20 +113,20 @@ class ExecutorOptimizer:
                 if index_name == None:
                     index_name = "index"
 
-                batch_col_name = "batch_col_INTERNAL_ONLY"
+                # batch_col_name = "batch_col_INTERNAL_ONLY"
                 # vis._vis_data[batch_col_name] = vis.data[list(attributes)].apply(lambda row: str(row), axis=1)
-                vis._vis_data[batch_col_name] = vis.data[batch].apply(lambda x: pd.factorize(x)[0], axis=1)
+                # vis._vis_data[batch_col_name] = vis.data[batch].apply(lambda x: pd.factorize(x)[0], axis=1)
                 
                 #**{batch_col_name: vis.data[batch].agg("-".join, axis=1)})
-                pre_group = vis._vis_data
+                # pre_group = vis._vis_data
 
                 # THIS IS COPIED FROM PANDAS EXECUTOR
-                print("pre group:", pre_group[batch_col_name])
+                # print("pre group:", pre_group[batch_col_name])
 
                 start_time = time.time()
-                first_pass = pre_group.groupby("batch_col_INTERNAL_ONLY", dropna=False, history=False).size().rename("Record").reset_index()
+                # first_pass = pre_group.groupby("batch_col_INTERNAL_ONLY", dropna=False, history=False).size().rename("Record").reset_index()
+                first_pass = vis._vis_data.groupby(batch, dropna=False, history=False).size().rename("Record").reset_index()
                 print(f"First pass time [{batch}]: {time.time() - start_time}")
-                print(first_pass)
                 for attr in batch:
                     self._executed_hierarchical_count_groupbys[attr] = first_pass
 
