@@ -126,7 +126,7 @@ class PandasExecutor(Executor):
         PandasExecutor.execute_sampling(ldf)
 
         filter_executed_all = {}
-        optimizer.active = False
+        optimizer.active = True
 
         for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe

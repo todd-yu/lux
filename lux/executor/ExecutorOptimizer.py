@@ -69,6 +69,14 @@ class ExecutorOptimizer:
 
             union = agg_funcs_info[0][0].data
 
+            # THIS IS COPIED (in a slightly modified form) FROM PANDAS EXECUTOR
+            attrs = set([])
+            for vis, _ in agg_funcs_info:
+                for clause in vis._inferred_intent:
+                    if clause.attribute != "Record":
+                        attrs.add(clause.attribute)
+            union = union[list(attrs)]
+
             groupby_result = union.groupby(attr, dropna=False, history=False)
             funcs = set([info[1] for info in agg_funcs_info])
 
