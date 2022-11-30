@@ -11,3 +11,6 @@ python3 optimized_lux_workload.py --num-trials 30 --log-file-path "./experiment_
 
 # incremental_optim, 1m
 python3 optimized_lux_workload.py --num-trials 30 --log-file-path "./experiment_logs/incremental_optim_1m.txt" --data-file-path "./data/1m.csv"
+
+# incremental_optim, 5m
+python3 optimized_lux_workload.py --num-trials 30 --log-file-path "./experiment_logs/incremental_optim_5m.txt" --data-file-path "./data/5m.csv"
