@@ -24,9 +24,14 @@ class ExecutorOptimizer:
         self._executed_single_groupbys = {}
 
         # Multi groupby optimization
-        self.hierarchical_count_groupby_K = 6
+        self.hierarchical_count_groupby_K = 9
         self._hierarchical_count_groupby_attrs = []
         self._executed_hierarchical_count_groupbys = {}
+
+        # Heatmap groupby caching
+        self.heatmap_2d_groupby_K = 100
+        self._heatmap_2d_groupby_attrs = {}
+        self._heatmap_2d_groupby_results = {}
         
 
     def cut(self, x, bins):
@@ -134,13 +139,12 @@ class ExecutorOptimizer:
                 start_time = time.time()
                 # first_pass = pre_group.groupby("batch_col_INTERNAL_ONLY", dropna=False, history=False).size().rename("Record").reset_index()
                 first_pass = vis._vis_data.groupby(batch, dropna=False, history=False).size().rename("Record")
-                print(f"First pass time [{batch}]: {time.time() - start_time}")
+                # print(f"First pass time [{batch}]: {time.time() - start_time}")
                 for attr in batch:
                     self._executed_hierarchical_count_groupbys[attr] = first_pass
 
                 batch.clear()
                 attributes.clear()
-    
 
     def retrieve_executed_hierarchical_count_groupby(self, attr, vis):
         if attr not in self._executed_hierarchical_count_groupbys:
@@ -152,7 +156,7 @@ class ExecutorOptimizer:
         if index_name == None:
             index_name = "index"
 
-        # # THIS IS COPIED FROM PANDAS EXECUTOR
+        # THIS IS COPIED FROM PANDAS EXECUTOR
         attributes = set([])
         for clause in vis._inferred_intent:
             if clause.attribute != "Record":
@@ -161,3 +165,34 @@ class ExecutorOptimizer:
         agg = first_pass.groupby(attr, dropna=False, history=False).sum().reset_index().rename({index_name: "Record"})
 
         return agg
+
+    def add_relevant_heatmap_2d_groupby(self, x_attr, y_attr, vis):
+        if x_attr not in self._heatmap_2d_groupby_attrs:
+            self._heatmap_2d_groupby_attrs[x_attr] = set()
+        self._heatmap_2d_groupby_attrs[x_attr].add((y_attr, vis))
+
+    def execute_heatmap_2d_groupbys(self, bin_size):
+        if not self.active:
+            return
+        for x_attr, y_attr_set in self._heatmap_2d_groupby_attrs.items():
+            batch = set()
+            data = pd.DataFrame()
+            for i, (y_attr, vis) in enumerate(y_attr_set):
+                batch.add(y_attr)
+                data[y_attr] = self.cut(vis._vis_data[y_attr], bin_size)
+                if i != 0 and i % self.heatmap_2d_groupby_K == 0 or i == len(y_attr_set) - 1:
+                    data[x_attr] = self.cut(vis._vis_data[x_attr], bin_size)
+                    batch.add(x_attr)
+                    first_pass = data.groupby(list(batch), history=False, observed=True).size().reset_index()
+                    for batch_attr in batch:
+                        self._heatmap_2d_groupby_results[(x_attr, batch_attr)] = first_pass
+                    data = pd.DataFrame()
+                    batch.clear()
+
+    def retrieve_executed_heatmap_2d_groupbys(self, x_attr, y_attr, vis):
+        if not self.active or (x_attr, y_attr) not in self._heatmap_2d_groupby_results:
+            return None
+        first_pass = self._heatmap_2d_groupby_results[(x_attr, y_attr)]
+        first_pass["xBin"], first_pass["yBin"] = first_pass[x_attr], first_pass[y_attr]
+        result = first_pass.groupby(["xBin", "yBin"], history=False)
+        return result

@@ -142,8 +142,7 @@ class PandasExecutor(Executor):
             filter_executed = PandasExecutor.execute_filter(vis)
             filter_executed_all[i] = filter_executed
 
-            do_project = True                
-
+            do_project = True
             if optimizer.active:
                 if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                     if filter_executed: # No optimization possible
@@ -177,6 +176,12 @@ class PandasExecutor(Executor):
                             # Single group-by, multi agg optimization
                             # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
                             optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                elif vis.mark == "heatmap" and not approx:
+                    x_attr = vis.get_attr_by_channel("x")[0].attribute
+                    y_attr = vis.get_attr_by_channel("y")[0].attribute
+                    color_attr = vis.get_attr_by_channel("color")
+                    if len(color_attr) == 0:
+                        optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
 
             if do_project:
                 # Select relevant data based on attribute information
@@ -188,13 +193,10 @@ class PandasExecutor(Executor):
                 vis._vis_data = vis._vis_data[list(attributes)]
 
         optimizer.execute_single_groupbys()
-        start_time = time.time()
         optimizer.execute_hierarchical_count_groupbys()
-        # print("Hierarchical count groupby time: ", time.time() - start_time)
-
+        optimizer.execute_heatmap_2d_groupbys(lux.config.heatmap_bin_size)
 
         for i, vis in enumerate(vislist):
-
             if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                 PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed_all[i])
             elif vis.mark == "histogram":
@@ -210,7 +212,7 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
+        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
         # for k in optimizer.total_access:
         #     hit_rate = 0
         #     if optimizer.total_access[k] > 0:
@@ -496,16 +498,11 @@ class PandasExecutor(Executor):
                     except ValueError:
                         pass
 
-            # OPTIMIZE HERE
-            # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], bins=lux.config.heatmap_bin_size)
-            # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], bins=lux.config.heatmap_bin_size)
-
-            vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
-            vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
-
             color_attr = vis.get_attr_by_channel("color")
             if len(color_attr) > 0:
                 color_attr = color_attr[0]
+                vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
                 groups = vis._vis_data.groupby(["xBin", "yBin"], history=False)[color_attr.attribute]
                 if color_attr.data_type == "nominal":
                     # Compute mode and count. Mode aggregates each cell by taking the majority vote for the category variable. In cases where there is ties across categories, pick the first item (.iat[0])
@@ -516,7 +513,13 @@ class PandasExecutor(Executor):
                     result = groups.agg([("count", "count"), (color_attr.attribute, "mean")]).reset_index()
                 result = result.dropna()
             else:
-                groups = vis._vis_data.groupby(["xBin", "yBin"], history=False)[x_attr]
+                groupby_result = optimizer.retrieve_executed_heatmap_2d_groupbys(x_attr, y_attr, vis)
+                use_optimizer = groupby_result is not None
+                if not use_optimizer:
+                    vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                    vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                    groupby_result = vis._vis_data.groupby(["xBin", "yBin"], history=False)
+                groups = groupby_result[x_attr]
                 result = groups.count().reset_index(name=x_attr)
                 result = result.rename(columns={x_attr: "count"})
                 result = result[result["count"] != 0]
