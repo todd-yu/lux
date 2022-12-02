@@ -134,7 +134,7 @@ class ExecutorOptimizer:
                 start_time = time.time()
                 # first_pass = pre_group.groupby("batch_col_INTERNAL_ONLY", dropna=False, history=False).size().rename("Record").reset_index()
                 first_pass = vis._vis_data.groupby(batch, dropna=False, history=False).size().rename("Record")
-                print(f"First pass time [{batch}]: {time.time() - start_time}")
+                # print(f"First pass time [{batch}]: {time.time() - start_time}")
                 for attr in batch:
                     self._executed_hierarchical_count_groupbys[attr] = first_pass
 

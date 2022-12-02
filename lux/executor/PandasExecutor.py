@@ -210,7 +210,7 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
+        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
         # for k in optimizer.total_access:
         #     hit_rate = 0
         #     if optimizer.total_access[k] > 0:
