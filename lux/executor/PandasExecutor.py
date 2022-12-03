@@ -146,7 +146,7 @@ class PandasExecutor(Executor):
             filter_executed_all[i] = filter_executed
 
             do_project = True
-            if optimizer.active:
+            if not optimizer.single_groupby_active and not optimizer.hierarchical_count_groupby_active and not optimizer.heatmap_groupby_active:
                 if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                     if not filter_executed: # No optimization possible if true
                         x_attr = vis.get_attr_by_channel("x")[0]
