@@ -175,11 +175,15 @@ class PandasExecutor(Executor):
                                 # These can only possibly be count aggregates
                                 if optimizer.hierarchical_count_groupby_active:
                                     optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                                else:
+                                    do_project = True
                             else:
                                 # Single group-by, multi agg optimization
                                 # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
                                 if optimizer.single_groupby_active:
                                     optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                                else:
+                                    do_project = True
                 elif vis.mark == "heatmap" and not approx:
                     if not filter_executed: # No optimization possible if true
                         x_attr = vis.get_attr_by_channel("x")[0].attribute
@@ -222,7 +226,6 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
         optimizer.single_groupby_active = False
         optimizer.hierarchical_count_groupby_active = False
         optimizer.heatmap_groupby_active = False
