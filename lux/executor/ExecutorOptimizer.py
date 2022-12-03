@@ -6,7 +6,10 @@ import time
 class ExecutorOptimizer:
 
     def __init__(self):
-        self.active = True
+        self.single_groupby_active = True
+        self.hierarchical_count_groupby_active = True
+        self.heatmap_2d_groupby_active = True
+        self.bin_active = True
 
         # Cache optimization
         self._cache = {}
@@ -35,7 +38,7 @@ class ExecutorOptimizer:
         
 
     def cut(self, x, bins):
-        if not self.active:
+        if not self.bin_active:
             return pd.cut(x, bins)
 
         hash = pd.util.hash_pandas_object(x).values.tobytes()
@@ -49,7 +52,7 @@ class ExecutorOptimizer:
         return res
 
     def histogram(self, series: LuxSeries, bins=10):
-        if not self.active:
+        if not self.bin_active:
             return np.histogram(series, bins=bins)
 
         hash = pd.util.hash_pandas_object(series).values.tobytes()
@@ -68,7 +71,7 @@ class ExecutorOptimizer:
         self._single_groupby_cache[attr].append((vis, agg_func))
 
     def execute_single_groupbys(self):
-        if not self.active:
+        if not self.single_groupby_active:
             return
         # attr = group by attribute
         for attr, agg_funcs_info in self._single_groupby_cache.items():
@@ -97,7 +100,7 @@ class ExecutorOptimizer:
                 self._executed_single_groupbys[(attr, func)] = agg
 
     def retrieve_executed_single_groupby(self, attr, agg_func, vis):
-        if not self.active:
+        if not self.single_groupby_active:
             return None
 
         key = (attr, agg_func)
@@ -118,7 +121,7 @@ class ExecutorOptimizer:
         self._hierarchical_count_groupby_attrs.append((attr, vis))
 
     def execute_hierarchical_count_groupbys(self):
-        if not self.active:
+        if not self.hierarchical_count_groupby_active:
             return
         batch = []
         attributes = set([])
@@ -156,7 +159,7 @@ class ExecutorOptimizer:
                 attributes.clear()
 
     def retrieve_executed_hierarchical_count_groupby(self, attr, vis):
-        if attr not in self._executed_hierarchical_count_groupbys or not self.active:
+        if not self.hierarchical_count_groupby_active or attr not in self._executed_hierarchical_count_groupbys:
             return None
         first_pass = self._executed_hierarchical_count_groupbys[attr]
 
@@ -181,7 +184,7 @@ class ExecutorOptimizer:
         self._heatmap_2d_groupby_attrs[x_attr].add((y_attr, vis))
 
     def execute_heatmap_2d_groupbys(self, bin_size):
-        if not self.active:
+        if not self.heatmap_2d_groupby_active:
             return
         for x_attr, y_attr_set in self._heatmap_2d_groupby_attrs.items():
             if len(y_attr_set) <= 3: # 3 is chosen as a middle ground, can eb tuned
@@ -206,7 +209,7 @@ class ExecutorOptimizer:
                     batch.clear()
 
     def retrieve_executed_heatmap_2d_groupbys(self, x_attr, y_attr, vis):
-        if not self.active or (x_attr, y_attr) not in self._heatmap_2d_groupby_results:
+        if not self.heatmap_2d_groupby_active or (x_attr, y_attr) not in self._heatmap_2d_groupby_results:
             return None
         first_pass = self._heatmap_2d_groupby_results[(x_attr, y_attr)]
         first_pass["xBin"], first_pass["yBin"] = first_pass[x_attr], first_pass[y_attr]

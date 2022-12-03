@@ -126,10 +126,7 @@ class PandasExecutor(Executor):
         PandasExecutor.execute_sampling(ldf)
 
         filter_executed_all = {}
-        optimizer.single_groupby_active = True
-        optimizer.hierarchical_count_groupby_active = True
-        optimizer.heatmap_groupby_active = True
-        optimizer.bin_active = True
+        optimizer.active = False
 
         for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe
@@ -172,22 +169,19 @@ class PandasExecutor(Executor):
                             do_project = False
                             if measure_attr.attribute == "Record":
                                 # These can only possibly be count aggregates
-                                if optimizer.hierarchical_count_groupby_active:
-                                    optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                                optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
                             else:
                                 # Single group-by, multi agg optimization
                                 # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
-                                if optimizer.single_groupby_active:
-                                    optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                                optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
                 elif vis.mark == "heatmap" and not approx:
                     if not filter_executed: # No optimization possible if true
                         x_attr = vis.get_attr_by_channel("x")[0].attribute
                         y_attr = vis.get_attr_by_channel("y")[0].attribute
                         color_attr = vis.get_attr_by_channel("color")
                         if len(color_attr) == 0:
-                            if optimizer.heatmap_groupby_active:
-                                optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
-                                # No need to project since we perform copying
+                            optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
+                            # No need to project since we perform copying
 
             if do_project:
                 # Select relevant data based on attribute information
@@ -198,14 +192,11 @@ class PandasExecutor(Executor):
                 # TODO: Add some type of cap size on Nrows ?
                 vis._vis_data = vis._vis_data[list(attributes)]
 
-        if optimizer.single_groupby_active:
-            optimizer.execute_single_groupbys()
-        if optimizer.hierarchical_count_groupby_active:
-            optimizer.execute_hierarchical_count_groupbys()
-        if optimizer.heatmap_2d_groupby_active:
-            optimizer.execute_heatmap_2d_groupbys(lux.config.heatmap_bin_size)
+        # optimizer.execute_single_groupbys()
+        # optimizer.execute_hierarchical_count_groupbys()
+        # optimizer.execute_heatmap_2d_groupbys(lux.config.heatmap_bin_size)
 
-        for i, vis in enumerate(vislist):
+        # for i, vis in enumerate(vislist):
             if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                 PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed_all[i])
             elif vis.mark == "histogram":
@@ -222,10 +213,7 @@ class PandasExecutor(Executor):
             vis.data._intent = []
         
         # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
-        optimizer.single_groupby_active = False
-        optimizer.hierarchical_count_groupby_active = False
-        optimizer.heatmap_groupby_active = False
-        optimizer.bin_active = False
+        optimizer.active = False
         # for k in optimizer.total_access:
         #     hit_rate = 0
         #     if optimizer.total_access[k] > 0:
@@ -293,7 +281,8 @@ class PandasExecutor(Executor):
                     vis._vis_data = vis.data[[groupby_attr.attribute, color_attr.attribute, "Record"]]
                 else:
                     # OPTIMIZATION
-                    groupby_result = optimizer.retrieve_executed_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                    # groupby_result = optimizer.retrieve_executed_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                    groupby_result = None
                     if groupby_result is not None:
                         vis._vis_data = groupby_result
                     else:
@@ -398,8 +387,8 @@ class PandasExecutor(Executor):
             series = timedelta64_to_float_seconds(series)
 
         # OPTIMIZATION
-        # counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
-        counts, bin_edges = optimizer.histogram(series, bins=bin_attribute.bin_size)
+        counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
+        # counts, bin_edges = optimizer.histogram(series, bins=bin_attribute.bin_size)
 
         # bin_edges of size N+1, so need to compute bin_start as the bin location
         bin_start = bin_edges[0:-1]
@@ -515,10 +504,10 @@ class PandasExecutor(Executor):
                 color_attr = color_attr[0]
 
                 # OPTIMIZATION
-                # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
-                # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
-                vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
-                vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                # vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                # vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
                 groups = vis._vis_data.groupby(["xBin", "yBin"], history=False)[color_attr.attribute]
                 if color_attr.data_type == "nominal":
                     # Compute mode and count. Mode aggregates each cell by taking the majority vote for the category variable. In cases where there is ties across categories, pick the first item (.iat[0])
@@ -530,13 +519,14 @@ class PandasExecutor(Executor):
                 result = result.dropna()
             else:
                 # OPTIMIZATION
-                groupby_result = optimizer.retrieve_executed_heatmap_2d_groupbys(x_attr, y_attr, vis)
-                use_optimizer = groupby_result is not None
+                # groupby_result = optimizer.retrieve_executed_heatmap_2d_groupbys(x_attr, y_attr, vis)
+                # use_optimizer = groupby_result is not None
+                use_optimizer = False
                 if not use_optimizer:
-                    # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
-                    # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
-                    vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
-                    vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                    vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                    vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                    # vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                    # vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
                     groupby_result = vis._vis_data.groupby(["xBin", "yBin"], history=False)
                 groups = groupby_result[x_attr]
                 result = groups.count().reset_index(name=x_attr)
@@ -707,3 +697,4 @@ class PandasExecutor(Executor):
             index_column_name = ldf.index.name
             ldf.unique_values[index_column_name] = list(ldf.index)
             ldf.cardinality[index_column_name] = len(ldf.index)
+
