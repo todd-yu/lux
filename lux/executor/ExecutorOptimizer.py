@@ -184,16 +184,18 @@ class ExecutorOptimizer:
         if not self.active:
             return
         for x_attr, y_attr_set in self._heatmap_2d_groupby_attrs.items():
+            if len(y_attr_set) <= 3: # 3 is chosen as a middle ground, can eb tuned
+                continue # This optimization hurts we can't group by many attrs
             batch = set()
             data = pd.DataFrame()
-            attributes = []
-            # print(len(y_attr_set))
             for i, (y_attr, vis) in enumerate(y_attr_set):
                 batch.add(y_attr)
                 data[y_attr] = self.cut(vis._vis_data[y_attr], bin_size)
-                # for clause in vis._inferred_intent:
-                #     if clause.attribute != "Record":
-                #         attributes.add(clause.attribute)
+
+                # color_attr = vis.get_attr_by_channel("color")
+                # if len(color_attr) > 0:
+                #     data[color_attr[0].attribute] = vis._vis_data[color_attr[0].attribute]
+
                 if i != 0 and i % self.heatmap_2d_groupby_K == 0 or i == len(y_attr_set) - 1:
                     data[x_attr] = self.cut(vis._vis_data[x_attr], bin_size)
                     batch.add(x_attr)
@@ -202,7 +204,6 @@ class ExecutorOptimizer:
                         self._heatmap_2d_groupby_results[(x_attr, batch_attr)] = first_pass
                     data = pd.DataFrame()
                     batch.clear()
-                    attributes.clear()
 
     def retrieve_executed_heatmap_2d_groupbys(self, x_attr, y_attr, vis):
         if not self.active or (x_attr, y_attr) not in self._heatmap_2d_groupby_results:

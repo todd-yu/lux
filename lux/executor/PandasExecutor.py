@@ -181,7 +181,7 @@ class PandasExecutor(Executor):
                         color_attr = vis.get_attr_by_channel("color")
                         if len(color_attr) == 0:
                             optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
-                            # do_project = False
+                            # No need to project since we perform copying
 
             if do_project:
                 # Select relevant data based on attribute information
