@@ -126,10 +126,11 @@ class PandasExecutor(Executor):
         PandasExecutor.execute_sampling(ldf)
 
         filter_executed_all = {}
-        optimizer.single_groupby_active = True
-        optimizer.hierarchical_count_groupby_active = True
-        optimizer.heatmap_groupby_active = True
-        optimizer.bin_active = True
+        disable_all = False
+        optimizer.single_groupby_active = True and not disable_all
+        optimizer.hierarchical_count_groupby_active = False and not disable_all
+        optimizer.heatmap_groupby_active = False and not disable_all
+        optimizer.bin_active = False and not disable_all
 
         for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe
@@ -146,7 +147,7 @@ class PandasExecutor(Executor):
             filter_executed_all[i] = filter_executed
 
             do_project = True
-            if not optimizer.single_groupby_active and not optimizer.hierarchical_count_groupby_active and not optimizer.heatmap_groupby_active:
+            if optimizer.single_groupby_active or optimizer.hierarchical_count_groupby_active or optimizer.heatmap_groupby_active:
                 if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
                     if not filter_executed: # No optimization possible if true
                         x_attr = vis.get_attr_by_channel("x")[0]

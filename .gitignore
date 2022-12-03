@@ -14,3 +14,4 @@ build/
 tests/.coverage
 tests/coverage.xml
 .venv/
+.venv_new/
