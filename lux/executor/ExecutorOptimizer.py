@@ -35,6 +35,9 @@ class ExecutorOptimizer:
         
 
     def cut(self, x, bins):
+        if not self.active:
+            return pd.cut(x, bins)
+
         hash = pd.util.hash_pandas_object(x).values.tobytes()
         key = ("cut", hash, bins)
         self.total_access["cut"] += 1
@@ -46,6 +49,9 @@ class ExecutorOptimizer:
         return res
 
     def histogram(self, series: LuxSeries, bins=10):
+        if not self.active:
+            return np.histogram(series, bins=bins)
+
         hash = pd.util.hash_pandas_object(series).values.tobytes()
         key = ("histogram", hash, bins)
         self.total_access["histogram"] += 1
@@ -91,6 +97,9 @@ class ExecutorOptimizer:
                 self._executed_single_groupbys[(attr, func)] = agg
 
     def retrieve_executed_single_groupby(self, attr, agg_func, vis):
+        if not self.active:
+            return None
+
         key = (attr, agg_func)
         if key not in self._executed_single_groupbys:
             return None
@@ -147,7 +156,7 @@ class ExecutorOptimizer:
                 attributes.clear()
 
     def retrieve_executed_hierarchical_count_groupby(self, attr, vis):
-        if attr not in self._executed_hierarchical_count_groupbys:
+        if attr not in self._executed_hierarchical_count_groupbys or not self.active:
             return None
         first_pass = self._executed_hierarchical_count_groupbys[attr]
 
@@ -177,9 +186,14 @@ class ExecutorOptimizer:
         for x_attr, y_attr_set in self._heatmap_2d_groupby_attrs.items():
             batch = set()
             data = pd.DataFrame()
+            attributes = []
+            # print(len(y_attr_set))
             for i, (y_attr, vis) in enumerate(y_attr_set):
                 batch.add(y_attr)
                 data[y_attr] = self.cut(vis._vis_data[y_attr], bin_size)
+                # for clause in vis._inferred_intent:
+                #     if clause.attribute != "Record":
+                #         attributes.add(clause.attribute)
                 if i != 0 and i % self.heatmap_2d_groupby_K == 0 or i == len(y_attr_set) - 1:
                     data[x_attr] = self.cut(vis._vis_data[x_attr], bin_size)
                     batch.add(x_attr)
@@ -188,6 +202,7 @@ class ExecutorOptimizer:
                         self._heatmap_2d_groupby_results[(x_attr, batch_attr)] = first_pass
                     data = pd.DataFrame()
                     batch.clear()
+                    attributes.clear()
 
     def retrieve_executed_heatmap_2d_groupbys(self, x_attr, y_attr, vis):
         if not self.active or (x_attr, y_attr) not in self._heatmap_2d_groupby_results:

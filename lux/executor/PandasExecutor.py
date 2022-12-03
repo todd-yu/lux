@@ -145,43 +145,43 @@ class PandasExecutor(Executor):
             do_project = True
             if optimizer.active:
                 if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
-                    if filter_executed: # No optimization possible
-                        continue
+                    if not filter_executed: # No optimization possible if true
+                        x_attr = vis.get_attr_by_channel("x")[0]
+                        y_attr = vis.get_attr_by_channel("y")[0]
+                        has_color = False
+                        groupby_attr = ""
+                        measure_attr = ""
+                        if x_attr.aggregation is None or y_attr.aggregation is None:
+                            continue
+                        if y_attr.aggregation != "":
+                            groupby_attr = x_attr
+                            measure_attr = y_attr
+                            agg_func = y_attr.aggregation
+                        if x_attr.aggregation != "":
+                            groupby_attr = y_attr
+                            measure_attr = x_attr
+                            agg_func = x_attr.aggregation
+                        # checks if color is specified in the Vis
+                        if len(vis.get_attr_by_channel("color")) == 1:
+                            has_color = True
 
-                    x_attr = vis.get_attr_by_channel("x")[0]
-                    y_attr = vis.get_attr_by_channel("y")[0]
-                    has_color = False
-                    groupby_attr = ""
-                    measure_attr = ""
-                    if x_attr.aggregation is None or y_attr.aggregation is None:
-                        continue
-                    if y_attr.aggregation != "":
-                        groupby_attr = x_attr
-                        measure_attr = y_attr
-                        agg_func = y_attr.aggregation
-                    if x_attr.aggregation != "":
-                        groupby_attr = y_attr
-                        measure_attr = x_attr
-                        agg_func = x_attr.aggregation
-                    # checks if color is specified in the Vis
-                    if len(vis.get_attr_by_channel("color")) == 1:
-                        has_color = True
-
-                    if measure_attr != "" and not has_color:
-                        do_project = False
-                        if measure_attr.attribute == "Record":
-                            # These can only possibly be count aggregates
-                            optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
-                        else:
-                            # Single group-by, multi agg optimization
-                            # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
-                            optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                        if measure_attr != "" and not has_color:
+                            do_project = False
+                            if measure_attr.attribute == "Record":
+                                # These can only possibly be count aggregates
+                                optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                            else:
+                                # Single group-by, multi agg optimization
+                                # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                                optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
                 elif vis.mark == "heatmap" and not approx:
-                    x_attr = vis.get_attr_by_channel("x")[0].attribute
-                    y_attr = vis.get_attr_by_channel("y")[0].attribute
-                    color_attr = vis.get_attr_by_channel("color")
-                    if len(color_attr) == 0:
-                        optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
+                    if not filter_executed: # No optimization possible if true
+                        x_attr = vis.get_attr_by_channel("x")[0].attribute
+                        y_attr = vis.get_attr_by_channel("y")[0].attribute
+                        color_attr = vis.get_attr_by_channel("color")
+                        if len(color_attr) == 0:
+                            optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
+                            # do_project = False
 
             if do_project:
                 # Select relevant data based on attribute information
@@ -212,7 +212,8 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
+        print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
+        optimizer.active = False
         # for k in optimizer.total_access:
         #     hit_rate = 0
         #     if optimizer.total_access[k] > 0:
