@@ -128,8 +128,8 @@ class PandasExecutor(Executor):
         filter_executed_all = {}
         disable_all = False
         optimizer.single_groupby_active = True and not disable_all
-        optimizer.hierarchical_count_groupby_active = False and not disable_all
-        optimizer.heatmap_groupby_active = False and not disable_all
+        optimizer.hierarchical_count_groupby_active = True and not disable_all
+        optimizer.heatmap_groupby_active = True and not disable_all
         optimizer.bin_active = False and not disable_all
 
         for i, vis in enumerate(vislist):
@@ -173,9 +173,10 @@ class PandasExecutor(Executor):
                             do_project = False
                             if measure_attr.attribute == "Record":
                                 # These can only possibly be count aggregates
+                                successful = False
                                 if optimizer.hierarchical_count_groupby_active:
-                                    optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
-                                else:
+                                    successful = optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                                if not successful:
                                     do_project = True
                             else:
                                 # Single group-by, multi agg optimization
@@ -226,6 +227,7 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
+        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}")
         optimizer.single_groupby_active = False
         optimizer.hierarchical_count_groupby_active = False
         optimizer.heatmap_groupby_active = False

@@ -27,7 +27,8 @@ class ExecutorOptimizer:
         self._executed_single_groupbys = {}
 
         # Multi groupby optimization
-        self.hierarchical_count_groupby_K = 9
+        self.hierarchical_count_groupby_K = 3
+        self.hierarchical_count_groupby_max_arity = 10
         self._hierarchical_count_groupby_attrs = []
         self._executed_hierarchical_count_groupbys = {}
 
@@ -117,8 +118,11 @@ class ExecutorOptimizer:
         return agg
 
     # These are only for COUNTs
-    def add_relevant_hierarchical_count_groupby(self, attr, vis):
-        self._hierarchical_count_groupby_attrs.append((attr, vis))
+    def add_relevant_hierarchical_count_groupby(self, attr, vis) -> bool:
+        if attr in vis._vis_data.cardinality and vis._vis_data.cardinality[attr] <= self.hierarchical_count_groupby_max_arity:
+            self._hierarchical_count_groupby_attrs.append((attr, vis))
+            return True
+        return False
 
     def execute_hierarchical_count_groupbys(self):
         if not self.hierarchical_count_groupby_active:
