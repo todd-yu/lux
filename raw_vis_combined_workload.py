@@ -4,6 +4,8 @@ import click
 import time
 from tqdm import tqdm
 import warnings
+from lux.vis.VisList import VisList
+from lux.vis.Vis import Vis
 warnings.filterwarnings("ignore")
 
 LUX_DEFAULT_TOP_K = 15
