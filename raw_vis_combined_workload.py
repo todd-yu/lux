@@ -8,7 +8,7 @@ from lux.vis.VisList import VisList
 from lux.vis.Vis import Vis
 warnings.filterwarnings("ignore")
 
-LUX_DEFAULT_TOP_K = 15
+LUX_DEFAULT_TOP_K = 100
 
 def numeric_type(col, df):
     dt = df.dtypes[col]
