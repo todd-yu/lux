@@ -13,7 +13,7 @@ CARDINLITY_VIS_LIMIT = 40000
 
 def numeric_type(col, df):
     dt = df.dtypes[col]
-    if df.cardinality > CARDINLITY_VIS_LIMIT:
+    if df.cardinality[col] > CARDINLITY_VIS_LIMIT:
         return False
     return dt == "int64" or dt == "float64"
 
