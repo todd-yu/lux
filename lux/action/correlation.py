@@ -18,9 +18,11 @@ from lux.processor.Compiler import Compiler
 from lux.core.frame import LuxDataFrame
 from lux.vis.VisList import VisList
 from lux.utils import utils
+import ray
 
 
 # change ignore_transpose to false for now.
+@ray.remote
 def correlation(ldf: LuxDataFrame, ignore_transpose: bool = True):
     """
     Generates bivariate visualizations that represent all pairwise relationships in the data.

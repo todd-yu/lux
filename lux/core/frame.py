@@ -27,6 +27,7 @@ from typing import Dict, Union, List, Callable
 import warnings
 import traceback
 import lux
+import ray
 
 
 class LuxDataFrame(pd.DataFrame):
@@ -84,6 +85,7 @@ class LuxDataFrame(pd.DataFrame):
         self._message = Message()
         self._pandas_only = False
         # Metadata
+        self._lux_config = ray.get(lux.config_ref)
         self._data_type = {}
         self.unique_values = None
         self.cardinality = None
@@ -121,9 +123,9 @@ class LuxDataFrame(pd.DataFrame):
         Compute dataset metadata and statistics
         """
         if len(self) > 0:
-            if lux.config.executor.name != "SQLExecutor":
-                lux.config.executor.compute_stats(self)
-            lux.config.executor.compute_dataset_metadata(self)
+            # if self._lux_config.executor.name != "SQLExecutor":
+            self._lux_config.executor.compute_stats(self)
+            self._lux_config.executor.compute_dataset_metadata(self)
             self._infer_structure()
             self._metadata_fresh = True
 
@@ -131,19 +133,21 @@ class LuxDataFrame(pd.DataFrame):
         """
         Maintain dataset metadata and statistics (Compute only if needed)
         """
-        is_sql_tbl = lux.config.executor.name != "PandasExecutor"
+        # is_sql_tbl = self._lux_config.executor.name != "PandasExecutor"
 
-        if lux.config.SQLconnection != "" and is_sql_tbl:
-            from lux.executor.SQLExecutor import SQLExecutor
+        # if self._lux_config.SQLconnection != "" and is_sql_tbl:
+        #     from lux.executor.SQLExecutor import SQLExecutor
 
-            # lux.config.executor = SQLExecutor()
+            # self._lux_config.executor = SQLExecutor()
+
+        # config = ray.get(self._lux_config.config_ref)
 
         # Check that metadata has not yet been computed
-        if lux.config.lazy_maintain:
+        # if config.lazy_maintain:
             # Check that metadata has not yet been computed
-            if not hasattr(self, "_metadata_fresh") or not self._metadata_fresh:
-                # only compute metadata information if the dataframe is non-empty
-                self.compute_metadata()
+        if not hasattr(self, "_metadata_fresh") or not self._metadata_fresh:
+            # only compute metadata information if the dataframe is non-empty
+            self.compute_metadata()
         else:
             self.compute_metadata()
 
@@ -151,7 +155,7 @@ class LuxDataFrame(pd.DataFrame):
         """
         Expires and resets all recommendations
         """
-        if lux.config.lazy_maintain:
+        if self._lux_config.lazy_maintain:
             self._recs_fresh = False
             self._recommendation = {}
             self._widget = None
@@ -162,7 +166,7 @@ class LuxDataFrame(pd.DataFrame):
         """
         Expire all saved metadata to trigger a recomputation the next time the data is required.
         """
-        if lux.config.lazy_maintain:
+        if self._lux_config.lazy_maintain:
             self._metadata_fresh = False
             self._data_type = None
             self.unique_values = None
@@ -199,7 +203,7 @@ class LuxDataFrame(pd.DataFrame):
         is_multi_index_flag = self.index.nlevels != 1
         not_int_index_flag = not pd.api.types.is_integer_dtype(self.index)
 
-        is_sql_tbl = lux.config.executor.name != "PandasExecutor"
+        is_sql_tbl = self._lux_config.executor.name != "PandasExecutor"
 
         small_df_flag = len(self) < 100 and is_sql_tbl
         if self.pre_aggregated == None:
@@ -347,7 +351,7 @@ class LuxDataFrame(pd.DataFrame):
             and self._current_vis[0].intent
         )
         if valid_current_vis and Validator.validate_intent(self._current_vis[0].intent, self):
-            lux.config.executor.execute(self._current_vis, self)
+            self._lux_config.executor.execute(self._current_vis, self)
         return self._current_vis
 
     @current_vis.setter
@@ -368,7 +372,7 @@ class LuxDataFrame(pd.DataFrame):
     def maintain_recs(self, is_series="DataFrame"):
         # `rec_df` is the dataframe to generate the recommendations on
         # check to see if globally defined actions have been registered/removed
-        if lux.config.update_actions["flag"] == True:
+        if self._lux_config.update_actions["flag"] == True:
             self._recs_fresh = False
         show_prev = False  # flag indicating whether rec_df is showing previous df or current self
 
@@ -400,7 +404,7 @@ class LuxDataFrame(pd.DataFrame):
             )
         else:
             id_fields_str = ""
-            inverted_data_type = lux.config.executor.invert_data_type(rec_df.data_type)
+            inverted_data_type = self._lux_config.executor.invert_data_type(rec_df.data_type)
             if len(inverted_data_type["id"]) > 0:
                 for id_field in inverted_data_type["id"]:
                     id_fields_str += f"<code>{id_field}</code>, "
@@ -410,14 +414,14 @@ class LuxDataFrame(pd.DataFrame):
         rec_df._prev = None  # reset _prev
 
         # If lazy, check that recs has not yet been computed
-        lazy_but_not_computed = lux.config.lazy_maintain and (
+        lazy_but_not_computed = self._lux_config.lazy_maintain and (
             not hasattr(rec_df, "_recs_fresh") or not rec_df._recs_fresh
         )
-        eager = not lux.config.lazy_maintain
+        eager = not self._lux_config.lazy_maintain
 
         # Check that recs has not yet been computed
         if lazy_but_not_computed or eager:
-            is_sql_tbl = lux.config.executor.name == "SQLExecutor"
+            is_sql_tbl = self._lux_config.executor.name == "SQLExecutor"
             rec_infolist = []
             from lux.action.row_group import row_group
             from lux.action.column_group import column_group
@@ -436,7 +440,7 @@ class LuxDataFrame(pd.DataFrame):
                 custom_action_collection = custom_actions(rec_df)
                 for rec in custom_action_collection:
                     rec_df._append_rec(rec_infolist, rec)
-                lux.config.update_actions["flag"] = False
+                self._lux_config.update_actions["flag"] = False
 
             # Store _rec_info into a more user-friendly dictionary form
             rec_df._recommendation = {}
@@ -447,12 +451,12 @@ class LuxDataFrame(pd.DataFrame):
                     rec_df._recommendation[action_type] = vlist
             rec_df._rec_info = rec_infolist
             rec_df.show_all_column_vis()
-            if lux.config.render_widget:
+            if self._lux_config.render_widget:
                 self._widget = rec_df.render_widget()
         # re-render widget for the current dataframe if previous rec is not recomputed
         elif show_prev:
             rec_df.show_all_column_vis()
-            if lux.config.render_widget:
+            if self._lux_config.render_widget:
                 self._widget = rec_df.render_widget()
         self._recs_fresh = True
 
@@ -585,7 +589,7 @@ class LuxDataFrame(pd.DataFrame):
 
                         self.current_vis = Compiler.compile_intent(self, self._intent)
 
-                if lux.config.default_display == "lux":
+                if self._lux_config.default_display == "lux":
                     self._toggle_pandas_display = False
                 else:
                     self._toggle_pandas_display = True
@@ -622,7 +626,7 @@ class LuxDataFrame(pd.DataFrame):
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception:
-            if lux.config.pandas_fallback:
+            if self._lux_config.pandas_fallback:
                 warnings.warn(
                     "\nUnexpected error in rendering Lux widget and recommendations. "
                     "Falling back to Pandas display.\n"
@@ -684,7 +688,7 @@ class LuxDataFrame(pd.DataFrame):
             recommendations=widgetJSON["recommendation"],
             intent=LuxDataFrame.intent_to_string(self._intent),
             message=self._message.to_html(),
-            config={"plottingScale": lux.config.plotting_scale},
+            config={"plottingScale": self._lux_config.plotting_scale},
         )
 
     @staticmethod
@@ -709,7 +713,7 @@ class LuxDataFrame(pd.DataFrame):
     def to_JSON(self, rec_infolist, input_current_vis=""):
         widget_spec = {}
         if self.current_vis:
-            lux.config.executor.execute(self.current_vis, self)
+            self._lux_config.executor.execute(self.current_vis, self)
             widget_spec["current_vis"] = LuxDataFrame.current_vis_to_JSON(
                 self.current_vis, input_current_vis
             )
@@ -727,7 +731,7 @@ class LuxDataFrame(pd.DataFrame):
         current_vis_spec = {}
         numVC = len(vlist)  # number of visualizations in the vis list
         if numVC == 1:
-            current_vis_spec = vlist[0].to_code(language=lux.config.plotting_backend, prettyOutput=False)
+            current_vis_spec = vlist[0].to_code(language=self._lux_config.plotting_backend, prettyOutput=False)
         elif numVC > 1:
             pass
         if vlist[0]._all_column:
@@ -746,7 +750,7 @@ class LuxDataFrame(pd.DataFrame):
             if len(rec["collection"]) > 0:
                 rec["vspec"] = []
                 for vis in rec["collection"]:
-                    chart = vis.to_code(language=lux.config.plotting_backend, prettyOutput=False)
+                    chart = vis.to_code(language=self._lux_config.plotting_backend, prettyOutput=False)
                     rec["vspec"].append(chart)
                 rec_lst.append(rec)
                 # delete since not JSON serializable

@@ -9,9 +9,9 @@ import warnings
 from lux.utils.tracing_utils import LuxTracer
 import os
 from lux._config.template import postgres_template, mysql_template
+import ray
 
 RegisteredOption = namedtuple("RegisteredOption", "name action display_condition args")
-
 
 class Config:
     """

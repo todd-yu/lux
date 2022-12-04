@@ -17,8 +17,10 @@ import lux
 from lux.executor.PandasExecutor import PandasExecutor
 from lux.executor.SQLExecutor import SQLExecutor
 import lux
+import ray
 
 
+@ray.remote
 def custom(ldf):
     """
     Generates user-defined vis based on the intent.
@@ -66,15 +68,22 @@ def custom_actions(ldf):
     """
     if len(lux.config.actions) > 0 and (len(ldf) > 0 or lux.config.executor.name != "PandasExecutor"):
         recommendations = []
+        futures = []
+
+        ldf_ref = ray.put(ldf)
+
         for action_name in lux.config.actions.keys():
             display_condition = lux.config.actions[action_name].display_condition
             if display_condition is None or (display_condition is not None and display_condition(ldf)):
                 args = lux.config.actions[action_name].args
                 if args:
-                    recommendation = lux.config.actions[action_name].action(ldf, args)
+                    recommendation = lux.config.actions[action_name].action.remote(ldf_ref, args)
                 else:
-                    recommendation = lux.config.actions[action_name].action(ldf)
-                recommendations.append(recommendation)
+                    recommendation = lux.config.actions[action_name].action.remote(ldf_ref)
+                futures.append(recommendation)
+
+        recommendations = ray.get(futures)
+
         return recommendations
     else:
         return []

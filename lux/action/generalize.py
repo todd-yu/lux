@@ -17,8 +17,10 @@ from lux.vis.Vis import Vis
 from lux.processor.Compiler import Compiler
 from lux.utils import utils
 from lux.interestingness.interestingness import interestingness
+import ray
 
 
+@ray.remote
 def generalize(ldf):
     """
     Generates all possible visualizations when one attribute or filter from the current vis is removed.

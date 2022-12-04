@@ -20,8 +20,9 @@ from lux.utils import utils
 from lux.vis.Vis import Vis
 from lux.vis.VisList import VisList
 import pandas as pd
+import ray
 
-
+@ray.remote
 def row_group(ldf):
     recommendation = {
         "action": "Row Groups",

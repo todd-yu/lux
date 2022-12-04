@@ -16,8 +16,9 @@ from lux.interestingness.interestingness import interestingness
 from lux.vis.VisList import VisList
 import lux
 from lux.utils import utils
+import ray
 
-
+ray.remote
 def univariate(ldf, *args):
     """
     Generates bar chart distributions of different attributes in the dataframe.

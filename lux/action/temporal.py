@@ -19,8 +19,9 @@ import pandas as pd
 from lux.core.frame import LuxDataFrame
 from lux.interestingness.interestingness import interestingness
 from lux.utils import utils
+import ray
 
-
+@ray.remote
 def temporal(ldf):
     """
     Generates line charts for temporal fields at different granularities.
@@ -70,6 +71,7 @@ def temporal(ldf):
     return recommendation
 
 
+@ray.remote
 def create_temporal_vis(ldf, col):
     """
     Creates and populates Vis objects for different timescales in the provided temporal column.

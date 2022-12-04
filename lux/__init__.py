@@ -22,12 +22,17 @@ from ._version import __version__, version_info
 from lux._config import config
 from lux._config.config import warning_format
 from lux.utils.debug_utils import debug_info, check_luxwidget_enabled
+import ray
 
 from lux._config import Config
 
 config = Config()
 
+
 from lux.action.default import register_default_actions
 
 register_default_actions()
 check_luxwidget_enabled()
+
+
+config_ref = ray.put(config)
