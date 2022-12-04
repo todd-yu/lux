@@ -17,14 +17,17 @@ from lux.vis.VisList import VisList
 from lux.vis.Vis import Vis
 from lux.core.frame import LuxDataFrame
 from lux.executor.Executor import Executor
+from lux.executor.ExecutorOptimizer import ExecutorOptimizer
 from lux.utils import utils
 from lux.utils.date_utils import is_datetime_series, is_timedelta64_series, timedelta64_to_float_seconds
 from lux.utils.utils import check_import_lux_widget, check_if_id_like, is_numeric_nan_column
 import warnings
 import lux
 from lux.utils.tracing_utils import LuxTracer
+import time
 
 
+optimizer = ExecutorOptimizer()
 
 class PandasExecutor(Executor):
     """
@@ -113,9 +116,23 @@ class PandasExecutor(Executor):
         -------
         None
         """
+        global optimizer
+
+        # TODO: The optimizer is not thread-safe at all
+        optimizer = ExecutorOptimizer()
+
+        start = time.perf_counter()
 
         PandasExecutor.execute_sampling(ldf)
-        for vis in vislist:
+
+        filter_executed_all = {}
+        disable_all = False
+        optimizer.single_groupby_active = True and not disable_all
+        optimizer.hierarchical_count_groupby_active = False and not disable_all
+        optimizer.heatmap_groupby_active = True and not disable_all
+        optimizer.bin_active = False and not disable_all
+
+        for i, vis in enumerate(vislist):
             # The vis data starts off being original or sampled dataframe
             vis._source = ldf
             vis._vis_data = ldf._sampled
@@ -125,17 +142,78 @@ class PandasExecutor(Executor):
                 PandasExecutor.execute_approx_sample(ldf)
                 vis._vis_data = ldf._approx_sample
                 vis.approx = True
-            filter_executed = PandasExecutor.execute_filter(vis)
-            # Select relevant data based on attribute information
-            attributes = set([])
-            for clause in vis._inferred_intent:
-                if clause.attribute != "Record":
-                    attributes.add(clause.attribute)
-            # TODO: Add some type of cap size on Nrows ?
-            vis._vis_data = vis._vis_data[list(attributes)]
 
+            filter_executed = PandasExecutor.execute_filter(vis)
+            filter_executed_all[i] = filter_executed
+
+            do_project = True
+            if optimizer.single_groupby_active or optimizer.hierarchical_count_groupby_active or optimizer.heatmap_groupby_active:
+                if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
+                    if not filter_executed: # No optimization possible if true
+                        x_attr = vis.get_attr_by_channel("x")[0]
+                        y_attr = vis.get_attr_by_channel("y")[0]
+                        has_color = False
+                        groupby_attr = ""
+                        measure_attr = ""
+                        if x_attr.aggregation is None or y_attr.aggregation is None:
+                            continue
+                        if y_attr.aggregation != "":
+                            groupby_attr = x_attr
+                            measure_attr = y_attr
+                            agg_func = y_attr.aggregation
+                        if x_attr.aggregation != "":
+                            groupby_attr = y_attr
+                            measure_attr = x_attr
+                            agg_func = x_attr.aggregation
+                        # checks if color is specified in the Vis
+                        if len(vis.get_attr_by_channel("color")) == 1:
+                            has_color = True
+
+                        if measure_attr != "" and not has_color:
+                            do_project = False
+                            if measure_attr.attribute == "Record":
+                                # These can only possibly be count aggregates
+                                successful = False
+                                if optimizer.hierarchical_count_groupby_active:
+                                    successful = optimizer.add_relevant_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                                if not successful:
+                                    do_project = True
+                            else:
+                                # Single group-by, multi agg optimization
+                                # Invariant: guaranteed that vis.data is the same for all vis (no filtering)
+                                if optimizer.single_groupby_active:
+                                    optimizer.add_potentially_relevant_single_groupby(groupby_attr.attribute, agg_func, vis)
+                                else:
+                                    do_project = True
+                elif vis.mark == "heatmap" and not approx:
+                    if not filter_executed: # No optimization possible if true
+                        x_attr = vis.get_attr_by_channel("x")[0].attribute
+                        y_attr = vis.get_attr_by_channel("y")[0].attribute
+                        color_attr = vis.get_attr_by_channel("color")
+                        if len(color_attr) == 0:
+                            if optimizer.heatmap_groupby_active:
+                                optimizer.add_relevant_heatmap_2d_groupby(x_attr, y_attr, vis)
+                                # No need to project since we perform copying
+
+            if do_project:
+                # Select relevant data based on attribute information
+                attributes = set([])
+                for clause in vis._inferred_intent:
+                    if clause.attribute != "Record":
+                        attributes.add(clause.attribute)
+                # TODO: Add some type of cap size on Nrows ?
+                vis._vis_data = vis._vis_data[list(attributes)]
+
+        if optimizer.single_groupby_active:
+            optimizer.execute_single_groupbys()
+        if optimizer.hierarchical_count_groupby_active:
+            optimizer.execute_hierarchical_count_groupbys()
+        if optimizer.heatmap_2d_groupby_active:
+            optimizer.execute_heatmap_2d_groupbys(lux.config.heatmap_bin_size)
+
+        for i, vis in enumerate(vislist):
             if vis.mark == "bar" or vis.mark == "line" or vis.mark == "geographical":
-                PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed)
+                PandasExecutor.execute_aggregate(vis, isFiltered=filter_executed_all[i])
             elif vis.mark == "histogram":
                 PandasExecutor.execute_binning(ldf, vis)
             elif vis.mark == "heatmap":
@@ -147,6 +225,17 @@ class PandasExecutor(Executor):
                     PandasExecutor.execute_2D_binning(vis)
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
+        
+        # print(f"Total time: {time.perf_counter()-start}, VisList length: {len(vislist)}, Approx: {approx}")
+        optimizer.single_groupby_active = False
+        optimizer.hierarchical_count_groupby_active = False
+        optimizer.heatmap_groupby_active = False
+        optimizer.bin_active = False
+        # for k in optimizer.total_access:
+        #     hit_rate = 0
+        #     if optimizer.total_access[k] > 0:
+        #         hit_rate = optimizer.hits[k] / optimizer.total_access[k]
+        #     print(f"Total accesses for {k}: {optimizer.total_access[k]}, Hit rate for {k}: {hit_rate}")
 
     @staticmethod
     def execute_aggregate(vis: Vis, isFiltered=True):
@@ -201,24 +290,37 @@ class PandasExecutor(Executor):
                 if index_name == None:
                     index_name = "index"
 
-                vis._vis_data = vis.data.reset_index()
+                # vis._vis_data = vis.data.reset_index()
                 # if color is specified, need to group by groupby_attr and color_attr
-
                 if has_color:
+                    vis._vis_data = vis.data.reset_index()
                     vis._vis_data = (vis.data.groupby([groupby_attr.attribute, color_attr.attribute], dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
                     vis._vis_data = vis.data[[groupby_attr.attribute, color_attr.attribute, "Record"]]
                 else:
-                    vis._vis_data = (vis.data.groupby(groupby_attr.attribute, dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
+                    # OPTIMIZATION
+                    groupby_result = optimizer.retrieve_executed_hierarchical_count_groupby(groupby_attr.attribute, vis)
+                    if groupby_result is not None:
+                        vis._vis_data = groupby_result
+                    else:
+                        vis._vis_data = vis.data.reset_index()
+                        vis._vis_data = (vis.data.groupby(groupby_attr.attribute, dropna=False, history=False).count().reset_index().rename(columns={index_name: "Record"}))
+
                     vis._vis_data = vis.data[[groupby_attr.attribute, "Record"]]
             else:
                 # if color is specified, need to group by groupby_attr and color_attr
                 if has_color:
                     groupby_result = vis.data.groupby([groupby_attr.attribute, color_attr.attribute], dropna=False, history=False)
+                    groupby_result = groupby_result.agg(agg_func)
                 else:
-                    groupby_result = vis.data.groupby(groupby_attr.attribute, dropna=False, history=False)
-                groupby_result = groupby_result.agg(agg_func)
+                    # OPTIMIZATION
+                    groupby_result = optimizer.retrieve_executed_single_groupby(groupby_attr.attribute, agg_func, vis)
+                    if groupby_result is None:
+                        groupby_result = vis.data.groupby(groupby_attr.attribute, dropna=False, history=False)
+                        groupby_result = groupby_result.agg(agg_func)
+                
                 intermediate = groupby_result.reset_index()
                 vis._vis_data = intermediate.__finalize__(vis.data)
+            
             result_vals = list(vis.data[groupby_attr.attribute])
             # create existing group by attribute combinations if color is specified
             # this is needed to check what combinations of group_by_attr and color_attr values have a non-zero number of elements in them
@@ -300,7 +402,10 @@ class PandasExecutor(Executor):
         if is_timedelta64_series(series):
             series = timedelta64_to_float_seconds(series)
 
-        counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
+        # OPTIMIZATION
+        # counts, bin_edges = np.histogram(series, bins=bin_attribute.bin_size)
+        counts, bin_edges = optimizer.histogram(series, bins=bin_attribute.bin_size)
+
         # bin_edges of size N+1, so need to compute bin_start as the bin location
         bin_start = bin_edges[0:-1]
         binned_result = np.array([bin_start, counts]).T
@@ -410,12 +515,15 @@ class PandasExecutor(Executor):
                     except ValueError:
                         pass
 
-            vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], bins=lux.config.heatmap_bin_size)
-            vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], bins=lux.config.heatmap_bin_size)
-
             color_attr = vis.get_attr_by_channel("color")
             if len(color_attr) > 0:
                 color_attr = color_attr[0]
+
+                # OPTIMIZATION
+                # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
                 groups = vis._vis_data.groupby(["xBin", "yBin"], history=False)[color_attr.attribute]
                 if color_attr.data_type == "nominal":
                     # Compute mode and count. Mode aggregates each cell by taking the majority vote for the category variable. In cases where there is ties across categories, pick the first item (.iat[0])
@@ -426,7 +534,16 @@ class PandasExecutor(Executor):
                     result = groups.agg([("count", "count"), (color_attr.attribute, "mean")]).reset_index()
                 result = result.dropna()
             else:
-                groups = vis._vis_data.groupby(["xBin", "yBin"], history=False)[x_attr]
+                # OPTIMIZATION
+                groupby_result = optimizer.retrieve_executed_heatmap_2d_groupbys(x_attr, y_attr, vis)
+                use_optimizer = groupby_result is not None
+                if not use_optimizer:
+                    # vis._vis_data["xBin"] = pd.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                    # vis._vis_data["yBin"] = pd.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                    vis._vis_data["xBin"] = optimizer.cut(vis._vis_data[x_attr], lux.config.heatmap_bin_size)
+                    vis._vis_data["yBin"] = optimizer.cut(vis._vis_data[y_attr], lux.config.heatmap_bin_size)
+                    groupby_result = vis._vis_data.groupby(["xBin", "yBin"], history=False)
+                groups = groupby_result[x_attr]
                 result = groups.count().reset_index(name=x_attr)
                 result = result.rename(columns={x_attr: "count"})
                 result = result[result["count"] != 0]

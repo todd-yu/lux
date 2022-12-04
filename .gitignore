@@ -18,3 +18,5 @@ tests/coverage.xml
 .lux-base
 data/
 .pandas-env/
+.venv/
+.venv_new/
