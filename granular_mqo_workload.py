@@ -117,14 +117,6 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
         log_file.write(f"Bar+Geo: ")
         gen_viz(gen_all_bar_specs(df) + gen_all_geo_specs(df), df)
 
-        df.delete_row(5)
-
-        log_file.write(f"Heatmap: ")
-        gen_viz(gen_all_2d_count_specs(df), df)
-
-        log_file.write(f"Bar+Geo: ")
-        gen_viz(gen_all_bar_specs(df) + gen_all_geo_specs(df), df)
-
         df.expire_metadata()
         df.expire_recs()
 
