@@ -129,7 +129,7 @@ class PandasExecutor(Executor):
         disable_all = False
         optimizer.single_groupby_active = True and not disable_all
         optimizer.hierarchical_count_groupby_active = False and not disable_all
-        optimizer.heatmap_groupby_active = False and not disable_all
+        optimizer.heatmap_groupby_active = True and not disable_all
         optimizer.bin_active = False and not disable_all
 
         for i, vis in enumerate(vislist):
