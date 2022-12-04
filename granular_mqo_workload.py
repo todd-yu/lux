@@ -9,10 +9,14 @@ from lux.vis.Vis import Vis
 from lux.executor.PandasExecutor import set_log_file
 warnings.filterwarnings("ignore")
 
-LUX_DEFAULT_TOP_K = 15
+LUX_DEFAULT_TOP_K = 100
+DF_CARDINALITY_LIMIT = 40000
 
 def numeric_type(col, df):
     dt = df.dtypes[col]
+    # TODO: cardinality check
+    if df.cardinality[col] > DF_CARDINALITY_LIMIT:
+        return False
     return dt == "int64" or dt == "float64"
 
 class Spec:
