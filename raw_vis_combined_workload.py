@@ -9,9 +9,12 @@ from lux.vis.Vis import Vis
 warnings.filterwarnings("ignore")
 
 LUX_DEFAULT_TOP_K = 100
+CARDINLITY_VIS_LIMIT = 40000
 
 def numeric_type(col, df):
     dt = df.dtypes[col]
+    if df.cardinality > CARDINLITY_VIS_LIMIT:
+        return False
     return dt == "int64" or dt == "float64"
 
 class Spec:

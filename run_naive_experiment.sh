@@ -1,7 +1,7 @@
 # ======= Naive Lux workloads, no optimizations =======
 
 # # no optimizations, 50k
-python3 raw_vis_combined_workload.py --num-trials 10 --log-file-path "./experiment_logsmqo_stats_combined_50k.txt" --data-file-path "./data/AB_NYC_2019.csv" --topk
+python3 raw_vis_combined_workload.py --num-trials 10 --log-file-path "./experiment_logs/mqo_stats_combined_50k.txt" --data-file-path "./data/AB_NYC_2019.csv" --topk
 
 # # no optimizations, 250k
 python3 raw_vis_combined_workload.py --num-trials 10 --log-file-path "./experiment_logs/mqo_stats_combined_250k.txt" --data-file-path "./data/250k.csv" --topk
