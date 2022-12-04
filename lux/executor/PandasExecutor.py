@@ -130,7 +130,7 @@ class PandasExecutor(Executor):
         PandasExecutor.execute_sampling(ldf)
 
         filter_executed_all = {}
-        disable_all = False
+        disable_all = True
         optimizer.single_groupby_active = True and not disable_all
         optimizer.hierarchical_count_groupby_active = False and not disable_all
         optimizer.heatmap_groupby_active = True and not disable_all
