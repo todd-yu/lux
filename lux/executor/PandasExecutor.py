@@ -121,7 +121,7 @@ class PandasExecutor(Executor):
         # TODO: The optimizer is not thread-safe at all
         optimizer = ExecutorOptimizer()
 
-        start = time.time()
+        start = time.perf_counter()
 
         PandasExecutor.execute_sampling(ldf)
 
@@ -222,12 +222,11 @@ class PandasExecutor(Executor):
                     vis._mark = "scatter"
                 else:
                     vis._mark = "heatmap"
-                    bstart = time.time()
                     PandasExecutor.execute_2D_binning(vis)
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        # print(f"Total time: {time.time()-start}, VisList length: {len(vislist)}, Approx: {approx}")
+        # print(f"Total time: {time.perf_counter()-start}, VisList length: {len(vislist)}, Approx: {approx}")
         optimizer.single_groupby_active = False
         optimizer.hierarchical_count_groupby_active = False
         optimizer.heatmap_groupby_active = False
