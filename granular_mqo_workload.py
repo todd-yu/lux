@@ -15,7 +15,7 @@ DF_CARDINALITY_LIMIT = 40000
 def numeric_type(col, df):
     dt = df.dtypes[col]
     # TODO: cardinality check
-    if df.cardinality[col] > DF_CARDINALITY_LIMIT:
+    if df[col].nunique() > DF_CARDINALITY_LIMIT:
         return False
     return dt == "int64" or dt == "float64"
 
