@@ -707,7 +707,7 @@ class PandasExecutor(Executor):
 
             # ====== begin Prototype ======
             if ldf._histograms:
-                ldf.unique_values[attribute_repr] = ldf._histograms[attribute].keys()
+                ldf.unique_values[attribute_repr] = list(ldf._histograms[attribute].keys())
                 ldf.cardinality[attribute_repr] = len(ldf._histograms[attribute])
 
                 if pd.api.types.is_float_dtype(ldf.dtypes[attribute]) or pd.api.types.is_integer_dtype(ldf.dtypes[attribute]):
