@@ -26,8 +26,12 @@ import lux
 from lux.utils.tracing_utils import LuxTracer
 import time
 
-
+log_file = None
 optimizer = ExecutorOptimizer()
+
+def set_log_file(f):
+    global log_file
+    log_file = f
 
 class PandasExecutor(Executor):
     """
@@ -227,6 +231,9 @@ class PandasExecutor(Executor):
             vis.data._intent = []
         
         # print(f"Total time: {time.perf_counter()-start}, VisList length: {len(vislist)}, Approx: {approx}")
+        if log_file is not None:
+            log_file.write(f"{time.perf_counter()-start}\n")
+
         optimizer.single_groupby_active = False
         optimizer.hierarchical_count_groupby_active = False
         optimizer.heatmap_groupby_active = False
