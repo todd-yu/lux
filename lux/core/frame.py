@@ -258,7 +258,7 @@ class LuxDataFrame(pd.DataFrame):
                 if vis.needs_incremental and vis.interestingness_func:
                     vis.score = vis.interestingness_func(vis, self, 
                         **vis.kwargs, incrementalize=True, delete=delete, row=row)
-                    print("incrementally updated metadata!")
+                    # print("incrementally updated metadata!")
                     
             self._recommendation[action_type] = vlist.showK()
 
