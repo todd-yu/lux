@@ -6,7 +6,7 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
-LUX_DEFAULT_TOP_K = 15
+LUX_DEFAULT_TOP_K = 100
 
 @click.command()
 @click.option('--num-trials', required=True)
@@ -21,6 +21,7 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
 
     lux.config.topk = LUX_DEFAULT_TOP_K if topk else False
     lux.config.sampling = sampling
+    lux.config.early_pruning = False
 
     log_file = open(log_file_path, "a")
 
