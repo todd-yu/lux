@@ -226,7 +226,7 @@ class PandasExecutor(Executor):
             # Ensure that intent is not propogated to the vis data (bypass intent setter, since trigger vis.data metadata recompute)
             vis.data._intent = []
         
-        # print(f"Total time: {time.perf_counter()-start}, VisList length: {len(vislist)}, Approx: {approx}")
+        print(f"Total time: {time.perf_counter()-start}, VisList length: {len(vislist)}, Approx: {approx}")
         optimizer.single_groupby_active = False
         optimizer.hierarchical_count_groupby_active = False
         optimizer.heatmap_groupby_active = False
