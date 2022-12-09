@@ -6,7 +6,7 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
-LUX_DEFAULT_TOP_K = 15
+LUX_DEFAULT_TOP_K = 50
 
 
 @click.command()
