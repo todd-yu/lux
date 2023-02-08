@@ -256,6 +256,7 @@ class LuxDataFrame(pd.DataFrame):
             vlist = self._recommendation[action_type]
             for vis in vlist:
                 if vis.needs_incremental and vis.interestingness_func:
+                    # print(**vis.kwargs)
                     vis.score = vis.interestingness_func(vis, self, 
                         **vis.kwargs, incrementalize=True, delete=delete, row=row)
                     

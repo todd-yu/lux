@@ -109,7 +109,7 @@ def interestingness(vis: Vis, ldf: LuxDataFrame) -> int:
                 sig = v_filter_size / v_size
             else:
                 sig = 1
-            return sig * monotonicity(vis, attr_specs)
+            return sig * monotonicity(vis, None, attr_specs)
         # Scatterplot colored by Dimension
         elif n_dim == 1 and n_msr == 2:
             if v_size < 10:
@@ -464,7 +464,8 @@ def mutual_information(v_x: list, v_y: list) -> int:
     return mutual_info_score(v_x, v_y)
 
 
-def monotonicity(vis: Vis, attr_specs: list, ignore_identity: bool = True) -> int:
+def monotonicity(vis: Vis, ldf = None, attr_specs=None, ignore_identity: bool = True, 
+incrementalize=False, delete=False, row=None) -> int:
     """
     Monotonicity measures there is a monotonic trend in the scatterplot, whether linear or not.
     This score is computed as the Pearson's correlation on the ranks of x and y.
@@ -483,7 +484,58 @@ def monotonicity(vis: Vis, attr_specs: list, ignore_identity: bool = True) -> in
     int
             Score describing the strength of monotonic relationship in vis
     """
-    from scipy.stats import pearsonr
+
+    if incrementalize:
+        msr1 = attr_specs[0].attribute
+        msr2 = attr_specs[1].attribute
+        vxy = vis.data.dropna()
+
+        if ignore_identity and msr1 == msr2:  # remove if measures are the same
+            return -1
+        v_x = vxy[msr1]
+        v_y = vxy[msr2]
+
+        # incremental 
+        x_hat = vis.interestingness_cache["x_hat"]
+        y_hat = vis.interestingness_cache["y_hat"]
+        a_hat = vis.interestingness_cache["a_hat"]
+        b_hat = vis.interestingness_cache["b_hat"]
+        c_hat = vis.interestingness_cache["c_hat"]
+
+        elem1 = row[msr1]
+        elem2 = row[msr2]
+
+        if delete:
+            x_hat += elem1
+            y_hat += elem2
+            a_hat += elem1 ** 2
+            b_hat += elem2 ** 2
+            c_hat += elem1 * elem2
+            n = len(v_x) - 1
+        else:
+            x_hat -= elem1
+            y_hat -= elem2
+            a_hat -= elem1 ** 2
+            b_hat -= elem2 ** 2
+            c_hat -= elem1 * elem2
+            n = len(v_x) + 1
+        
+        vis.interestingness_cache["x_hat"] = x_hat
+        vis.interestingness_cache["y_hat"] = y_hat
+        vis.interestingness_cache["a_hat"] = a_hat
+        vis.interestingness_cache["b_hat"] = b_hat
+        vis.interestingness_cache["c_hat"] = c_hat
+
+        denom = (np.sqrt(a_hat - (x_hat **2)/n) * (np.sqrt(b_hat - (y_hat **2)/n)))
+        score = (c_hat - (x_hat * y_hat)/n) / denom if denom != 0 else -1
+
+        if pd.isnull(score):
+            return -1
+        else:
+            # print("woohoo")
+            return score
+
+    # from scipy.stats import pearsonr
 
     msr1 = attr_specs[0].attribute
     msr2 = attr_specs[1].attribute
@@ -494,15 +546,41 @@ def monotonicity(vis: Vis, attr_specs: list, ignore_identity: bool = True) -> in
     v_x = vxy[msr1]
     v_y = vxy[msr2]
 
-    import warnings
+    # import warnings
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("error")
-        try:
-            score = np.abs(pearsonr(v_x, v_y)[0])
-        except:
-            # RuntimeWarning: invalid value encountered in true_divide (occurs when v_x and v_y are uniform, stdev in denominator is zero, leading to spearman's correlation as nan), ignore these cases.
-            score = -1
+    # with warnings.catch_warnings():
+    #     warnings.filterwarnings("error")
+    #     try:
+    #         score = np.abs(pearsonr(v_x, v_y)[0])
+    #     except:
+    #         # RuntimeWarning: invalid value encountered in true_divide (occurs when v_x and v_y are uniform, stdev in denominator is zero, leading to spearman's correlation as nan), ignore these cases.
+    #         score = -1
+
+
+    # begin incremental execution
+    x_hat = v_x.sum()
+    y_hat = v_y.sum()
+    a_hat = (v_x ** 2).sum()
+    b_hat = (v_y ** 2).sum()
+    c_hat = (v_x * v_y).sum()
+    n = len(v_x)
+
+    vis.needs_incremental = True
+    vis.interestingness_cache = {}
+    vis.kwargs = {
+        "attr_specs": attr_specs,
+        "ignore_identity": ignore_identity
+    }
+    vis.interestingness_func = monotonicity
+
+    vis.interestingness_cache["x_hat"] = x_hat
+    vis.interestingness_cache["y_hat"] = y_hat
+    vis.interestingness_cache["a_hat"] = a_hat
+    vis.interestingness_cache["b_hat"] = b_hat
+    vis.interestingness_cache["c_hat"] = c_hat
+
+    denom = (np.sqrt(a_hat - (x_hat **2)/n) * (np.sqrt(b_hat - (y_hat **2)/n)))
+    score = (c_hat - (x_hat * y_hat)/n) / denom if denom != 0 else -1
 
     if pd.isnull(score):
         return -1
