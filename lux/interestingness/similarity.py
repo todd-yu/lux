@@ -19,6 +19,8 @@ import numpy as np
 from lux.vis.VisList import VisList
 from lux.utils.utils import get_filter_specs
 
+interestingness_cache = {}
+
 
 def interpolate(vis, length):
     """
@@ -97,7 +99,7 @@ def normalize(vis):
         vis.data[y_axis] = (vis.data[y_axis] - min) / (max - min)
 
 
-def euclidean_dist(query_vis, vis):
+def euclidean_dist(query_vis, vis, incrementalize=False, delete = False, row = None):
     """
     Calculates euclidean distance score for similarity between two visualizations
 
@@ -121,6 +123,25 @@ def euclidean_dist(query_vis, vis):
 
         vis_vector = vis.data[vis_y_axis].values
         query_vector = query_vis.data[query_y_axis].values
+
+        if vis_vector in interestingness_cache and query_vector in interestingness_cache:
+            return interestingness_cache[vis_vector] - 2* interestingness_cache[hash(vis_vector) + hash(query_vector)] + interestingness_cache[query_vector]
+
+        if incrementalize and vis_vector in interestingness_cache and query_vector in interestingness_cache:
+            if delete:
+                interestingness_cache[vis_vector] -= row[vis_y_axis] ** 2
+                interestingness_cache[query_vector] -= row[query_y_axis] ** 2
+                interestingness_cache[hash(vis_vector) + hash(query_vector)] -= row[vis_y_axis] * row[query_y_axis]
+            else:
+                interestingness_cache[vis_vector] += row[vis_y_axis] ** 2
+                interestingness_cache[query_vector] += row[query_y_axis] ** 2
+                interestingness_cache[hash(vis_vector) + hash(query_vector)] += row[vis_y_axis] * row[query_y_axis]
+
+        else:
+            interestingness_cache[vis_vector] = np.sum(vis_vector ** 2)
+            interestingness_cache[query_vector] = np.sum(query_vector ** 2)
+            interestingness_cache[hash(vis_vector) + hash(query_vector)] = np.sum(vis_vector * query_vector)
+            
         score = np.linalg.norm(vis_vector - query_vector)
 
         return score

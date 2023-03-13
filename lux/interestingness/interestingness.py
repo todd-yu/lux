@@ -206,13 +206,13 @@ def skewness(vis: Vis, v, dimension_lst, measure_lst,
 
         if delete:
             deleted_val = row[col]
-            idx = bisect_left(vis.data[col].values, deleted_val)
+            idx = min(bisect_left(vis.data[col].values, deleted_val), len(vis.data[col].values) - 1)
             prev_num_records = vis.data.iloc[idx]["Number of Records"]
             count, mean, M2 = sub_element(count, mean, M2, prev_num_records)
             count, mean, M2 = add_element(count, mean, M2, prev_num_records - 1)
         else:
             added_val = row[col]
-            idx = bisect_left(vis.data[col].values, added_val)
+            idx = min(bisect_left(vis.data[col].values, added_val), len(vis.data[col].values) - 1)
             prev_num_records = vis.data.iloc[idx]["Number of Records"]
             count, mean, M2 = sub_element(count, mean, M2, prev_num_records)
             count, mean, M2 = add_element(count, mean, M2, prev_num_records + 1)
@@ -408,7 +408,7 @@ incrementalize=False, delete=False, row=None) -> int:
     col = measure_lst[0].attribute
     attr = dimension_lst[0].attribute
     prev_cardinality = ldf.cardinality[attr] if col == "Record" else ldf.cardinality[col]
-    if incrementalize and vis.interestingness_cache.get("C") == prev_cardinality:
+    if incrementalize:
         squared_norm = vis.interestingness_cache["euc"] ** 2
         C = ldf.cardinality[attr]
         D = (0.9) ** C  # cardinality-based discounting factor
