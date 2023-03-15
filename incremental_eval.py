@@ -27,28 +27,25 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac
 
     log_file = open(log_file_path, "a")
 
-    num_ops_fraction = int(num_ops_frac) * 2
-
     # moved inside the loop due to repeated deletes
     df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
-    df_copy = df.sample(n=len(df) // num_ops_frac, ignore_index=True)
+    df_copy = df.sample(n=len(df) // int(num_ops_frac), ignore_index=True)
+
+    num_ops_fraction = int(num_ops_frac) * 2
 
     for _ in tqdm(range(int(num_trials))):
-
-        print("started recommendation")
+        
         first_rec = df.recommendation
-
-        print("ended rec")
 
         start = time.perf_counter()
 
         # ===== begin all ops here =====
         
-        for i in tqdm(range(len(df) // num_ops_fraction)):
+        for i in range(len(df) // num_ops_fraction):
             df.delete_row(i)
 
-        for i in tqdm(range(len(df) // num_ops_fraction)):
+        for i in range(len(df) // num_ops_fraction):
             df.add_row(df_copy.iloc[i])
 
         # ===== end all ops =====
