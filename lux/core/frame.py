@@ -24,6 +24,7 @@ from lux.utils.utils import check_import_lux_widget
 from typing import Dict, Union, List, Callable
 from sortedcontainers import SortedDict
 from lux.utils import utils
+import time
 # from lux.interestingness.interestingness import interestingness
 
 # from lux.executor.Executor import *
@@ -31,6 +32,7 @@ import warnings
 import traceback
 import lux
 
+start, end = 0, 0
 
 class LuxDataFrame(pd.DataFrame):
     """
@@ -269,7 +271,7 @@ class LuxDataFrame(pd.DataFrame):
         """
         append row ROW to the current dataframe; note that ROW must follow the same dataframe schema
         """
-        super(LuxDataFrame, self).append(row, inplace=True) 
+        super(LuxDataFrame, self).append(row, ignore_index=True) 
         for field in self.columns:
             self._insert_item(field, row[field])
         self.update_interestingness(delete=False, row=row)
@@ -451,8 +453,18 @@ class LuxDataFrame(pd.DataFrame):
             from lux.processor.Compiler import Compiler
 
             self.maintain_metadata()
+
+            global start, end
+
             self.current_vis = Compiler.compile_intent(self, self._intent)
+
+            start = time.perf_counter()
             self.maintain_recs()
+
+            # log_file = open("test.txt", "a")
+            # log_file.write(f"DONE: {str(end - start)}")
+            # log_file.flush()
+            # log_file.close()
 
         return self._recommendation
 
@@ -492,6 +504,7 @@ class LuxDataFrame(pd.DataFrame):
                 self.current_vis = VisList([vis])
 
     def maintain_recs(self, is_series="DataFrame"):
+        global end
         # `rec_df` is the dataframe to generate the recommendations on
         # check to see if globally defined actions have been registered/removed
         if lux.config.update_actions["flag"] == True:
@@ -563,6 +576,7 @@ class LuxDataFrame(pd.DataFrame):
                 for rec in custom_action_collection:
                     rec_df._append_rec(rec_infolist, rec)
                 lux.config.update_actions["flag"] = False
+                end = time.perf_counter()
 
             # Store _rec_info into a more user-friendly dictionary form
             rec_df._recommendation = {}
@@ -572,14 +586,15 @@ class LuxDataFrame(pd.DataFrame):
                 if len(vlist) > 0:
                     rec_df._recommendation[action_type] = vlist
             rec_df._rec_info = rec_infolist
-            rec_df.show_all_column_vis()
-            if lux.config.render_widget:
-                self._widget = rec_df.render_widget()
+            # rec_df.show_all_column_vis()
+            # if lux.config.render_widget:
+                # self._widget = rec_df.render_widget()
         # re-render widget for the current dataframe if previous rec is not recomputed
         elif show_prev:
-            rec_df.show_all_column_vis()
-            if lux.config.render_widget:
-                self._widget = rec_df.render_widget()
+            # rec_df.show_all_column_vis()
+            # if lux.config.render_widget:
+            #     self._widget = rec_df.render_widget()
+            self._recs_fresh = True
         self._recs_fresh = True
 
     #######################################################

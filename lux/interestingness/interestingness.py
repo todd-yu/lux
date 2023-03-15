@@ -501,32 +501,39 @@ incrementalize=False, delete=False, row=None) -> int:
         a_hat = vis.interestingness_cache["a_hat"]
         b_hat = vis.interestingness_cache["b_hat"]
         c_hat = vis.interestingness_cache["c_hat"]
+        n = vis.interestingness_cache["n"]
 
+        row = row.dropna()
         elem1 = row[msr1]
         elem2 = row[msr2]
 
-        if delete:
+        # print("====", elem1, elem2)
+
+        if not delete:
             x_hat += elem1
             y_hat += elem2
             a_hat += elem1 ** 2
             b_hat += elem2 ** 2
             c_hat += elem1 * elem2
-            n = len(v_x) - 1
+            n += 1
         else:
             x_hat -= elem1
             y_hat -= elem2
             a_hat -= elem1 ** 2
             b_hat -= elem2 ** 2
             c_hat -= elem1 * elem2
-            n = len(v_x) + 1
+            n -= 1
         
         vis.interestingness_cache["x_hat"] = x_hat
         vis.interestingness_cache["y_hat"] = y_hat
         vis.interestingness_cache["a_hat"] = a_hat
         vis.interestingness_cache["b_hat"] = b_hat
         vis.interestingness_cache["c_hat"] = c_hat
+        vis.interestingness_cache["n"] = n
 
-        denom = (np.sqrt(a_hat - (x_hat **2)/n) * (np.sqrt(b_hat - (y_hat **2)/n)))
+        denom = (np.sqrt(a_hat - ((x_hat **2)/n)))
+        p2 =  (np.sqrt(b_hat - ((y_hat **2)/n)))
+        denom = denom * p2
         score = (c_hat - (x_hat * y_hat)/n) / denom if denom != 0 else -1
 
         if pd.isnull(score):
@@ -578,6 +585,7 @@ incrementalize=False, delete=False, row=None) -> int:
     vis.interestingness_cache["a_hat"] = a_hat
     vis.interestingness_cache["b_hat"] = b_hat
     vis.interestingness_cache["c_hat"] = c_hat
+    vis.interestingness_cache["n"] = n
 
     denom = (np.sqrt(a_hat - (x_hat **2)/n) * (np.sqrt(b_hat - (y_hat **2)/n)))
     score = (c_hat - (x_hat * y_hat)/n) / denom if denom != 0 else -1
