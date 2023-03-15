@@ -35,7 +35,9 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac
     num_ops_fraction = int(num_ops_frac) * 2
 
     for _ in tqdm(range(int(num_trials))):
-        
+
+        df = pd.read_csv(data_file_path) # "./data/500k.csv"
+
         first_rec = df.recommendation
 
         start = time.perf_counter()
