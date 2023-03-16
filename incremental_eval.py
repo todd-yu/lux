@@ -30,9 +30,9 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac
     # moved inside the loop due to repeated deletes
     df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
-    df_copy = df.sample(n=len(df) // int(num_ops_frac), ignore_index=True)
+    df_copy = df.sample(n=min(len(df) // int(num_ops_frac), len(df)), ignore_index=True)
 
-    num_ops_fraction = int(num_ops_frac) * 2
+    num_ops_fraction = float(num_ops_frac) * 2
 
     for _ in tqdm(range(int(num_trials))):
 
