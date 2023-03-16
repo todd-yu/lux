@@ -89,8 +89,8 @@ def generalize(ldf):
 
     vlist = lux.vis.VisList.VisList(output, source=ldf)
     # Ignore interestingness sorting since Generalize yields very few vis (preserve order of remove attribute, then remove filters)
-    # for vis in vlist:
-    # 	vis.score = interestingness(vis,ldf)
+    for vis in vlist:
+        vis.score = interestingness(vis,ldf)
 
     vlist.remove_duplicates()
     vlist.sort(remove_invalid=True)

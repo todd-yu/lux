@@ -454,11 +454,9 @@ class LuxDataFrame(pd.DataFrame):
 
             self.maintain_metadata()
 
-            global start, end
 
             self.current_vis = Compiler.compile_intent(self, self._intent)
 
-            start = time.perf_counter()
             self.maintain_recs()
 
             # log_file = open("test.txt", "a")
@@ -570,6 +568,9 @@ class LuxDataFrame(pd.DataFrame):
                 self.index.nlevels >= 2 or self.columns.nlevels >= 2
             ):
                 from lux.action.custom import custom_actions
+
+                global start, end
+                start = time.perf_counter()
 
                 # generate vis from globally registered actions and append to dataframe
                 custom_action_collection = custom_actions(rec_df)
