@@ -16,7 +16,7 @@ logger = False
 @click.option('--data-file-path', required=True)
 @click.option('--topk', is_flag=True, default=False)
 @click.option('--sampling', is_flag=True, default=False)
-@click.option('--num-ops-frac', default = 4)
+@click.option('--num-ops-frac', default = 4.0)
 def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac):
     global logger, log_file
 
@@ -30,7 +30,7 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac
     # moved inside the loop due to repeated deletes
     df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
-    df_copy = df.sample(n=min(len(df) // int(num_ops_frac), len(df)), ignore_index=True)
+    df_copy = df.sample(n=min(round(len(df) / float(num_ops_frac)), len(df)), ignore_index=True)
 
     num_ops_fraction = float(num_ops_frac) * 2
 
@@ -44,10 +44,10 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops_frac
 
         # ===== begin all ops here =====
         
-        for i in range(len(df) // num_ops_fraction):
+        for i in range(round(len(df) / num_ops_fraction)):
             df.delete_row(i)
 
-        for i in range(len(df) // num_ops_fraction):
+        for i in range(round(len(df) / num_ops_fraction)):
             df.add_row(df_copy.iloc[i])
 
         # ===== end all ops =====
