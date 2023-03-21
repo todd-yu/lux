@@ -14,3 +14,12 @@ python3 incremental_eval.py --num-trials 10 --log-file-path "./incr_experiment_l
 
 # 1/1 total incremental ops (1/2 deletes, 1/2 row adds)
 python3 incremental_eval.py --num-trials 10 --log-file-path "./incr_experiment_logs/incremental_1.txt" --data-file-path "./data/crimedata.csv" --num-ops-frac 1
+
+# 1/.75 total incremental ops (.67 deletes, .67 row adds)
+python3 incremental_eval.py --num-trials 10 --log-file-path "./incr_experiment_logs/incremental_pt_75.txt" --data-file-path "./data/crimedata.csv" --num-ops-frac 0.75
+
+# 1/.67 total incremental ops (.75 deletes, .75 row adds)
+python3 incremental_eval.py --num-trials 10 --log-file-path "./incr_experiment_logs/incremental_pt_67.txt" --data-file-path "./data/crimedata.csv" --num-ops-frac 0.67
+
+# baseline eval
+python3 baseline_eval.py --num-trials 10 --log-file-path "./incr_experiment_logs/baseline.txt" --data-file-path ./data/crimedata.csv
