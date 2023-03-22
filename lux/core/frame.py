@@ -223,7 +223,9 @@ class LuxDataFrame(pd.DataFrame):
             pass
 
         curr_histogram = self._histograms[column]
-        assert item in curr_histogram, "deletion encountered very bad error"
+        # print(item, curr_histogram)
+        if item not in curr_histogram:
+            return False
         curr_histogram[item] -= 1
         if curr_histogram[item] == 0:
             curr_histogram.pop(item)
@@ -282,10 +284,10 @@ class LuxDataFrame(pd.DataFrame):
         remove row located at ROW_INDEX from this dataframe
         """
         for field in self.columns:
-            self._delete_item(field, self.loc[row_index, field])
-        row = self.loc[row_index]
-        super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
+            self._delete_item(field, self.iloc[row_index][field])
+        row = self.iloc[row_index]
         self.update_interestingness(delete=True, row=row)
+        super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
 
 
     def edit_row(self, row_index, column_val_dict):

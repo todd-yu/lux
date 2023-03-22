@@ -503,7 +503,7 @@ incrementalize=False, delete=False, row=None) -> int:
         c_hat = vis.interestingness_cache["c_hat"]
         n = vis.interestingness_cache["n"]
 
-        row = row.dropna()
+        row = row.fillna(0)
         elem1 = row[msr1]
         elem2 = row[msr2]
 
