@@ -16,10 +16,10 @@ python3 incremental_eval.py --num-trials 5 --log-file-path "./incr_experiment_lo
 python3 incremental_eval.py --num-trials 5 --log-file-path "./incr_experiment_logs_10k/incremental_1.txt" --data-file-path "./data/10k.csv" --num-ops-frac 1
 
 # 1/.75 total incremental ops (.67 deletes, .67 row adds)
-python3 incremental_eval.py --num-trials 5 --log-file-path "./incr_experiment_logs_10k/incremental_pt_75.txt" --data-file-path "./data/10k.csv" --num-ops-frac 0.75
+python3 incremental_eval.py --num-trials 3 --log-file-path "./incr_experiment_logs_10k/incremental_pt_75.txt" --data-file-path "./data/10k.csv" --num-ops-frac 0.75
 
 # 1/.67 total incremental ops (.75 deletes, .75 row adds)
-python3 incremental_eval.py --num-trials 5 --log-file-path "./incr_experiment_logs_10k/incremental_pt_67.txt" --data-file-path "./data/10k.csv" --num-ops-frac 0.67
+python3 incremental_eval.py --num-trials 3 --log-file-path "./incr_experiment_logs_10k/incremental_pt_67.txt" --data-file-path "./data/10k.csv" --num-ops-frac 0.67
 
 # baseline eval
-python3 baseline_eval.py --num-trials 5 --log-file-path "./incr_experiment_logs_10k/baseline.txt" --data-file-path ./data/10k.csv
+python3 baseline_eval.py --num-trials 3 --log-file-path "./incr_experiment_logs_10k/baseline.txt" --data-file-path ./data/10k.csv
