@@ -212,7 +212,10 @@ class LuxDataFrame(pd.DataFrame):
            curr_histogram[item] += 1
            return False
         else:
-            curr_histogram[item] = 1
+            if pd.isna(item):
+                return False 
+            curr_histogram.pop(item)
+            curr_histogram.update({item:1})
             self.cardinality[column] += 1
             self.unique_values[column] = curr_histogram.keys()
             return True
