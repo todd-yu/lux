@@ -22,7 +22,7 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops):
 
     click.echo(f"Beginning benchmark for {log_file_path} with params: topk={topk} sampling={sampling}")
 
-    # lux.config.topk = LUX_DEFAULT_TOP_K if topk else False
+    lux.config.topk = False
     # lux.config.sampling = sampling
 
     log_file = open(log_file_path, "a")
