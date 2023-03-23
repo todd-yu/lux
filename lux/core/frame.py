@@ -278,8 +278,8 @@ class LuxDataFrame(pd.DataFrame):
         append row ROW to the current dataframe; note that ROW must follow the same dataframe schema
         """
         # super(LuxDataFrame, self).append(row, ignore_index=True) 
-        for field in self.columns:
-            self._insert_item(field, row[field])
+        # for field in self.columns:
+        #     self._insert_item(field, row[field])
         self.update_interestingness(delete=False, row=row)
 
 
@@ -287,8 +287,8 @@ class LuxDataFrame(pd.DataFrame):
         """
         remove row located at ROW_INDEX from this dataframe
         """
-        for field in self.columns:
-            self._delete_item(field, self.iloc[row_index][field])
+        # for field in self.columns:
+        #     self._delete_item(field, self.iloc[row_index][field])
         row = self.iloc[row_index]
         self.update_interestingness(delete=True, row=row)
         # super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
