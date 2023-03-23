@@ -30,7 +30,7 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling, num_ops):
     # moved inside the loop due to repeated deletes
     df = pd.read_csv(data_file_path) # "./data/500k.csv"
 
-    df_copy = df.sample(n=min(round(len(df) / float(num_ops)), len(df)), ignore_index=True)
+    df_copy = df.sample(n=min(num_ops * 2, len(df)), ignore_index=True)
 
 
     for _ in tqdm(range(int(num_trials))):
