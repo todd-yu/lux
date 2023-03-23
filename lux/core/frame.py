@@ -277,7 +277,7 @@ class LuxDataFrame(pd.DataFrame):
         """
         append row ROW to the current dataframe; note that ROW must follow the same dataframe schema
         """
-        super(LuxDataFrame, self).append(row, ignore_index=True) 
+        # super(LuxDataFrame, self).append(row, ignore_index=True) 
         for field in self.columns:
             self._insert_item(field, row[field])
         self.update_interestingness(delete=False, row=row)
@@ -291,7 +291,7 @@ class LuxDataFrame(pd.DataFrame):
             self._delete_item(field, self.iloc[row_index][field])
         row = self.iloc[row_index]
         self.update_interestingness(delete=True, row=row)
-        super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
+        # super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
 
 
     def edit_row(self, row_index, column_val_dict):
