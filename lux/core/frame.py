@@ -294,9 +294,9 @@ class LuxDataFrame(pd.DataFrame):
         # super(LuxDataFrame, self).drop(labels=row_index, inplace=True)
 
 
-    def edit_row(self, row_index, column_val_dict):
+    def edit_cell_via_row(self, row_index, column_val_dict):
         """
-        Edit row at ROW_INDEX with values from COLUMN_VAL_DICT. 
+        Edit cell at row at ROW_INDEX with values from COLUMN_VAL_DICT. 
         COLUMN_VAL_DICT must be a dict mapping column name to new value
 
         """
