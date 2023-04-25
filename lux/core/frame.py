@@ -458,12 +458,17 @@ class LuxDataFrame(pd.DataFrame):
         if self._recommendation is not None and self._recommendation == {}:
             from lux.processor.Compiler import Compiler
 
+            global start, end
+            start = time.perf_counter()
             self.maintain_metadata()
 
 
             self.current_vis = Compiler.compile_intent(self, self._intent)
 
             self.maintain_recs()
+
+            end = time.perf_counter()
+
 
             # log_file = open("test.txt", "a")
             # log_file.write(f"DONE: {str(end - start)}")
@@ -575,8 +580,6 @@ class LuxDataFrame(pd.DataFrame):
             ):
                 from lux.action.custom import custom_actions
 
-                global start, end
-                start = time.perf_counter()
 
                 # generate vis from globally registered actions and append to dataframe
                 custom_action_collection = custom_actions(rec_df)
@@ -596,7 +599,6 @@ class LuxDataFrame(pd.DataFrame):
             # if lux.config.render_widget:
                 # self._widget = rec_df.render_widget()
         # re-render widget for the current dataframe if previous rec is not recomputed
-            end = time.perf_counter()
         elif show_prev:
             # rec_df.show_all_column_vis()
             # if lux.config.render_widget:
