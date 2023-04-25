@@ -23,7 +23,7 @@ def main(num_trials, log_file_path, data_file_path, topk, sampling):
     # lux.config.topk = LUX_DEFAULT_TOP_K if topk else False
     lux.config.early_pruning = False
     lux.config.topk = False
-    lux.config.sampling = sampling
+    lux.config.sampling = False
 
     log_file = open(log_file_path, "a")
 
