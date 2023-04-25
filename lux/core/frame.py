@@ -583,7 +583,6 @@ class LuxDataFrame(pd.DataFrame):
                 for rec in custom_action_collection:
                     rec_df._append_rec(rec_infolist, rec)
                 lux.config.update_actions["flag"] = False
-                end = time.perf_counter()
 
             # Store _rec_info into a more user-friendly dictionary form
             rec_df._recommendation = {}
@@ -593,10 +592,11 @@ class LuxDataFrame(pd.DataFrame):
                 if len(vlist) > 0:
                     rec_df._recommendation[action_type] = vlist
             rec_df._rec_info = rec_infolist
-            # rec_df.show_all_column_vis()
+            rec_df.show_all_column_vis()
             # if lux.config.render_widget:
                 # self._widget = rec_df.render_widget()
         # re-render widget for the current dataframe if previous rec is not recomputed
+            end = time.perf_counter()
         elif show_prev:
             # rec_df.show_all_column_vis()
             # if lux.config.render_widget:
